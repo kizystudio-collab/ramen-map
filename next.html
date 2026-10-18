@@ -261,10 +261,10 @@ function photoInfo(r){
   if(!Places||!budgetOK()) return Promise.resolve(null);
   const p=(async()=>{try{
     budgetInc();
-    const {places}=await Places.Place.searchByText({textQuery:(r[0]+' '+(r[1]||'')+' '+r[2]+(r[3]||'')).trim(),fields:['photos','googleMapsURI','location'],locationBias:{lat:r[4],lng:r[5]},maxResultCount:1,language:'ja',region:'jp'});
+    const {places}=await Places.Place.searchByText({textQuery:(r[0]+' '+(r[1]||'')+' '+r[2]+(r[3]||'')).trim(),fields:['photos','googleMapsURI','location','displayName'],locationBias:{lat:r[4],lng:r[5]},maxResultCount:1,language:'ja',region:'jp'});
     const pl=places&&places[0], v={t:Date.now(),u:[],a:[]};
     if(pl&&pl.location&&km(r[4],r[5],pl.location.lat(),pl.location.lng())<0.6){
-      v.g=pl.googleMapsURI||''; const ph=(pl.photos||[]).slice(0,8);
+      v.g=pl.googleMapsURI||''; v.n=pl.displayName||''; const ph=(pl.photos||[]).slice(0,8);
       v.u=ph.map(x=>x.getURI({maxWidth:800,maxHeight:800})); v.a=ph.map(x=>(x.authorAttributions||[]).map(y=>y.displayName).join(', '));
     }
     PH.set(id,v); return v;
@@ -276,8 +276,18 @@ function applyMarkerPhoto(m,v){if(!v||!v.u||!v.u[0]||!m.content.isConnected&&!m.
 function applyThumb(el,v){if(!el||!v||!v.u||!v.u[0]||el.querySelector('img'))return;el.textContent='';el.insertAdjacentHTML('beforeend',imgTag(v.u[0]))}
 const thumbIO=('IntersectionObserver' in window)?new IntersectionObserver(es=>{for(const e of es){if(!e.isIntersecting)continue;thumbIO.unobserve(e.target);const r=results[+e.target.closest('.item').dataset.i]?.[1];if(!r)continue;photoInfo(r).then(v=>applyThumb(e.target,v))}},{rootMargin:'100px'}):null;
 
+/* 営業時間（OSM 形式 "Mo-Fr 11:00-15:00; Su off"）を日本語に */
+const DJ={Mo:'月',Tu:'火',We:'水',Th:'木',Fr:'金',Sa:'土',Su:'日',PH:'祝'};
+function jaHours(h){if(!h)return'';if(/24\/7/.test(h))return'24時間営業';
+  return h.split(';').map(p=>p.trim()).filter(Boolean).map(p=>p.replace(/\b(Mo|Tu|We|Th|Fr|Sa|Su|PH)\b/g,m=>DJ[m]).replace(/([月火水木金土日祝])-([月火水木金土日祝])/g,'$1〜$2').replace(/\s*(off|closed)\b/gi,' 定休').replace(/,\s*/g,'・')).join(' / ')}
+/* 店名: 英語・一般名だけの店は Google の日本語名（写真取得時に一緒に取得）で表示 */
+const BADNAME=/^[A-Za-z0-9 .,'&\-!()\/:]+$|^(ラーメン|らーめん|麺屋|ラーメン店|ラーメン屋|中華そば)$/;
+function nameOf(r){const c=BADNAME.test((r[0]||'').trim())?photoCached(r):null;return (c&&c.n)?c.n:r[0]}
+const catsOf=r=>((r[21]||r[6]||'').split(';').filter(Boolean));
+const catsText=r=>catsOf(r).join('・')||'系統不明';
+
 function terms(){const t=$('q').value.trim().split(/[\s　、,]+/).filter(Boolean);active.forEach(a=>t.push(a));return t}
-function match(r,ts){const hay=r[6]+' '+r[7]+' '+r[9]+' '+r[10]+' '+r[11]+' '+r[16]+' '+r[0]+' '+r[1];
+function match(r,ts){const hay=r[6]+' '+r[7]+' '+r[9]+' '+r[10]+' '+r[11]+' '+r[16]+' '+r[0]+' '+r[1]+' '+(r[21]||'')+' '+(r[22]||'');
   for(const t of ts){if(RICH.test(t)){if(r[8]<4)return false;continue}if(LIGHT.test(t)){if(!(r[8]>0&&r[8]<=2))return false;continue}
     const syn=SYN[t]||[t];if(!syn.some(s=>hay.includes(s)))return false}return true}
 
@@ -386,7 +396,7 @@ function drawMarkers(){
     keep.add(r[19]); if(markers.has(r[19])) continue;
     const [col,ch]=CAT[r[6]]||CAT[""];
     const el=document.createElement('div'); el.className='mk';
-    el.innerHTML=`<div class="c" style="background:${col}">${ch}</div><div class="lb">${esc(r[0])}</div>`;
+    el.innerHTML=`<div class="c" style="background:${col}">${ch}</div><div class="lb">${esc(nameOf(r))}</div>`;
     const m=new AdvMarker({map,position:{lat:r[4],lng:r[5]},content:el,title:r[0]+(r[1]?' '+r[1]:'')});
     m.addListener('click',()=>openDetail(r,true));
     markers.set(r[19],m);
@@ -432,8 +442,8 @@ body.addEventListener('pointerover',e=>{const it=e.target.closest('.item'); if(!
 function itemHTML(r,dk,i){
   const [col,ch]=CAT[r[6]]||CAT[""], op=openNow(r[13]);
   return `<div class="item" data-i="${i}" role="button" tabindex="0">
-    <div class="tx"><div class="nm">${esc(r[0])}${r[1]?' '+esc(r[1]):''}</div>
-      <div class="line">${r[8]?abura(r[8])+'<span class="dot"></span>':''}${esc(r[6]||'系統不明')}<span class="dot"></span>${fmtD(dk)}</div>
+    <div class="tx"><div class="nm">${esc(nameOf(r))}${r[1]?' '+esc(r[1]):''}</div>
+      <div class="line">${r[8]?abura(r[8])+'<span class="dot"></span>':''}${esc(catsText(r))}<span class="dot"></span>${fmtD(dk)}</div>
       <div class="line">${esc(r[20]?r[20].replace(/ 徒歩/,'・徒歩'):(r[3]||r[2]))}</div>
       <div class="line">${op===true?'<span class="open">営業中</span>':op===false?'<span class="closed">営業時間外</span>':''}${op!==null?'<span class="dot"></span>':''}<span class="tag ${/^(A|B)/.test(r[12])?'ok':''}">${confLabel(r[12])}</span>${r[16]?'<span class="dot"></span>'+esc(r[16].split(/[;、]/)[0]):''}</div></div>
     <div class="thumb" style="background:${col}" aria-hidden="true">${ch}</div></div>`;
@@ -463,18 +473,18 @@ function openDetail(r,fromMap){
   const dest=r[4]+','+r[5], qname=encodeURIComponent(r[0]+' '+(r[1]||'')+' '+r[2]+r[3]);
   const gm=`https://www.google.com/maps/search/?api=1&query=${qname}`;
   const rowsHTML=[
-    [ICON.bowl,`${esc(r[6]||'系統不明')}${r[7]?'（'+esc(r[7].replace(/;/g,'・'))+'）':''}${r[8]?'<br>こってり度 '+abura(r[8])+' '+r[8]+'/5':''}${r[9]?'<br><span style="color:var(--text-2)">'+esc(r[9].replace(/;/g,'・'))+'</span>':''}`],
+    [ICON.bowl,`${esc(catsText(r))}${r[7]?'（'+esc(r[7].replace(/;/g,'・'))+'）':''}${r[8]?'<br>こってり度 '+abura(r[8])+' '+r[8]+'/5':''}${r[9]?'<br><span style="color:var(--text-2)">'+esc(r[9].replace(/;/g,'・'))+'</span>':''}`],
     r[11]&&[ICON.info,'麺：'+esc(r[11])],
     [ICON.pin,`<a href="${gm}" target="_blank" rel="noopener">${esc(r[17]||r[2]+r[3])}</a>`],
     r[20]&&[ICON.train,esc(r[20])+'<span style="color:var(--text-2)">（直線距離からの目安）</span>'],
-    r[13]&&[ICON.clock,(op===true?'<span class="open">営業中</span> ・ ':op===false?'<span class="closed">営業時間外</span> ・ ':'')+esc(r[13])],
+    r[13]&&[ICON.clock,(op===true?'<span class="open">営業中</span> ・ ':op===false?'<span class="closed">営業時間外</span> ・ ':'')+esc(jaHours(r[13]))],
     r[14]&&[ICON.web,`<a href="${esc(r[14])}" target="_blank" rel="noopener">${esc(r[14].replace(/^https?:\/\/(www\.)?/,'').split('/')[0])}</a>`],
     r[18]&&[ICON.call,`<a href="tel:${esc(r[18])}">${esc(r[18])}</a>`],
   ].filter(Boolean).map(([i,t])=>`<div class="row">${i}<div>${t}</div></div>`).join('');
   body.innerHTML=`<div class="pl">
     <button class="closeX" id="closeX" aria-label="閉じる">${ICON.x}</button>
-    <h1>${esc(r[0])}${r[1]?' <span style="font-size:16px;color:var(--text-2)">'+esc(r[1])+'</span>':''}</h1>
-    <div class="line">${r[8]?abura(r[8])+'<span class="dot"></span>':''}ラーメン店<span class="dot"></span>${esc(r[6]||'系統不明')}${dk!=null?'<span class="dot"></span>'+fmtD(dk):''}</div>
+    <h1>${esc(nameOf(r))}${r[1]?' <span style="font-size:16px;color:var(--text-2)">'+esc(r[1])+'</span>':''}</h1>
+    <div class="line">${r[8]?abura(r[8])+'<span class="dot"></span>':''}ラーメン店<span class="dot"></span>${esc(catsText(r))}${dk!=null?'<span class="dot"></span>'+fmtD(dk):''}</div>
     <div class="line" style="margin-top:2px"><span class="tag ${/^(A|B)/.test(r[12])?'ok':''}">${confLabel(r[12])}</span>${r[10]?'<span class="dot"></span>'+esc(r[10]):''}</div>
     <div class="gal" id="gal">${galHTML(photoCached(r))}</div>
     <div class="acts">
@@ -484,10 +494,11 @@ function openDetail(r,fromMap){
       <button class="act" id="shareB">${ICON.share}共有</button>
     </div>
     ${r[16]?`<div class="sec">メニュー</div><div class="menu">${r[16].split(/[;、,／/]/).filter(Boolean).slice(0,6).map(x=>'<span>'+esc(x.trim())+'</span>').join('')}</div>`:''}
+    ${r[22]?`<div class="sec">お店の雰囲気</div><div class="menu">${r[22].split(';').filter(Boolean).slice(0,6).map(x=>'<span style="background:#e8f0fe;color:#174ea6">'+esc(x)+'</span>').join('')}</div>`:''}
     <div class="rows">${rowsHTML}</div>
     <p class="note">系統・営業状況は公開情報からの推定を含みます。口コミ・写真・最新の営業情報は「Google マップで開く」から確認できます。</p></div>`;
   body.scrollTop=0;
-  if(!photoCached(r)) photoInfo(r).then(v=>{ if(sel===r && $('gal')) $('gal').outerHTML=`<div class="gal" id="gal">${galHTML(v||{u:[]})}</div>` });
+  if(!photoCached(r)) photoInfo(r).then(v=>{ if(sel===r && $('gal')) $('gal').outerHTML=`<div class="gal" id="gal">${galHTML(v||{u:[]})}</div>`; if(sel===r&&v&&v.n&&BADNAME.test(r[0].trim())){const h=body.querySelector('.pl h1'); if(h&&h.firstChild) h.firstChild.textContent=v.n} });
   $('closeX').onclick=closeDetail;
   $('shareB').onclick=()=>{const d={title:r[0],text:r[0]+'（'+(r[6]||'ラーメン')+'）',url:gm}; navigator.share?navigator.share(d).catch(()=>{}):(navigator.clipboard.writeText(gm),toast('リンクをコピーしました'))};
   setSheet(1);
