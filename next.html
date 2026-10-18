@@ -270,7 +270,7 @@ function photoInfo(r){
   }catch(e){return null}finally{inflight.delete(id)}})();
   inflight.set(id,p); return p;
 }
-const imgTag=(u,alt='')=>`<img src="${esc(u)}" alt="${esc(alt)}" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">`;
+const imgTag=(u,alt='')=>`<img src="${esc(u)}" alt="${esc(alt)}" loading="lazy" onerror="this.remove()">`;
 function applyMarkerPhoto(m,v){if(!v||!v.u||!v.u[0]||!m.content.isConnected&&!m.content.parentNode)return;const c=m.content.querySelector('.c');if(!c||c.querySelector('img'))return;m.content.classList.add('ph');c.innerHTML=imgTag(v.u[0])}
 function applyThumb(el,v){if(!el||!v||!v.u||!v.u[0]||el.querySelector('img'))return;el.textContent='';el.insertAdjacentHTML('beforeend',imgTag(v.u[0]))}
 const thumbIO=('IntersectionObserver' in window)?new IntersectionObserver(es=>{for(const e of es){if(!e.isIntersecting)continue;thumbIO.unobserve(e.target);const r=results[+e.target.closest('.item').dataset.i]?.[1];if(!r)continue;photoInfo(r).then(v=>applyThumb(e.target,v))}},{rootMargin:'100px'}):null;
