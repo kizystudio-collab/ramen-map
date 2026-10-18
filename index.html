@@ -401,6 +401,7 @@ function drawMarkers(){
 /* ========== 一覧 ========== */
 function computeList(){
   const ts=terms(), rad=+$('radius').value, sure=$('fSure').getAttribute('aria-pressed')==='true', onlyOpen=$('fOpen').getAttribute('aria-pressed')==='true';
+  if(!anchor&&!here&&map) anchor={lat:map.getCenter().lat(),lng:map.getCenter().lng()};  // 現在地なしでも「このエリアを検索」が出るよう基準点を持つ
   const o=anchor||here||(map?{lat:map.getCenter().lat(),lng:map.getCenter().lng()}:{lat:34.7025,lng:135.4959});
   const out=[];
   for(const r of rows){
