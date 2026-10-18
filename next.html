@@ -387,7 +387,7 @@ function openDetail(r,fromMap){
     const target={lat:r[4],lng:r[5]};
     if(!fromMap && map.getZoom()<16) map.setZoom(16);
     map.panTo(target);
-    if(!isDesk()){ const visible=snaps()[1]; google.maps.event.addListenerOnce(map,'idle',()=>{}); setTimeout(()=>map.panBy(0,(innerHeight-visible)/2),0) }
+    setTimeout(()=>isDesk()?map.panBy(-204,0):map.panBy(0,(innerHeight-snaps()[1])/2),0);
   }
   const o=here||anchor; const dk=o?km(o.lat,o.lng,r[4],r[5]):null, op=openNow(r[13]);
   const dest=r[4]+','+r[5], qname=encodeURIComponent(r[0]+' '+(r[1]||'')+' '+r[2]+r[3]);

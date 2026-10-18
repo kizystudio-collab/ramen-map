@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>らーめん羅針盤</title>
+<meta name="theme-color" content="#1f2340">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+/* layout: 地図が主役、下からせり上がる「どんぶりシート」に気分チップと近い順リスト */
+:root{
+  --ink:#1f2340;        /* 暖簾の藍 */
+  --ink-2:#4a4f73;
+  --paper:#f6f5f2;      /* 丼の白 */
+  --card:#ffffff;
+  --line:#e2e0da;
+  --naruto:#d9446f;     /* なるとの桃 */
+  --naruto-soft:#fbe3ea;
+  --muted:#6f7085;
+  --f-disp:"Dela Gothic One","Hiragino Sans","Noto Sans JP",sans-serif;
+  --f-body:"Zen Kaku Gothic New","Hiragino Sans","Noto Sans JP",system-ui,sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root{
+  --ink:#eceaf6;--ink-2:#b9b7cf;--paper:#16182a;--card:#1f2238;--line:#30344f;--naruto:#ff6f97;--naruto-soft:#3a2032;--muted:#9a9bb3;color-scheme:dark}}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{font-family:var(--f-body);background:var(--paper);color:var(--ink);font-size:15px;overflow:hidden}
+#map{position:fixed;inset:0;z-index:0;background:var(--paper)}
+.top{position:fixed;left:0;right:0;top:0;z-index:20;padding:calc(env(safe-area-inset-top,0px) + 10px) max(12px,env(safe-area-inset-right,0px)) 0 max(12px,env(safe-area-inset-left,0px));pointer-events:none}
+.bar{pointer-events:auto;display:flex;gap:8px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:6px 6px 6px 12px;box-shadow:0 6px 20px rgba(20,20,40,.12)}
+.logo{font-family:var(--f-disp);font-size:16px;letter-spacing:.02em;white-space:nowrap;color:var(--ink)}
+.logo b{color:var(--naruto);font-weight:400}
+#q{flex:1;min-width:0;border:0;background:transparent;font:inherit;font-size:16px;color:var(--ink);padding:8px 4px;outline:none}
+#q::placeholder{color:var(--muted)}
+.icon-btn{border:0;background:var(--ink);color:var(--paper);border-radius:10px;height:38px;min-width:38px;padding:0 10px;font:inherit;font-weight:700;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:4px;white-space:nowrap}
+.icon-btn.ghost{background:var(--naruto-soft);color:var(--naruto)}
+.icon-btn:focus-visible,.chip:focus-visible,.item:focus-visible{outline:2px solid var(--naruto);outline-offset:2px}
+.moods{pointer-events:auto;display:flex;gap:6px;overflow-x:auto;padding:8px 0 4px;scrollbar-width:none}
+.moods::-webkit-scrollbar{display:none}
+.chip{flex:none;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:999px;padding:7px 12px;font:inherit;font-size:13px;font-weight:500;cursor:pointer;display:flex;align-items:center;gap:6px;box-shadow:0 2px 8px rgba(20,20,40,.08)}
+.chip i{width:10px;height:10px;border-radius:50%;display:inline-block;border:1px solid rgba(0,0,0,.15)}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+/* sheet */
+.sheet{position:fixed;left:0;right:0;bottom:0;z-index:30;background:var(--card);border-radius:18px 18px 0 0;box-shadow:0 -8px 30px rgba(20,20,40,.18);display:flex;flex-direction:column;height:46vh;max-height:calc(100% - 120px);transition:height .25s ease}
+.sheet.tall{height:calc(100% - 130px)}
+.sheet.low{height:118px}
+.grip{padding:8px max(16px,env(safe-area-inset-left,0px)) 6px;cursor:grab;touch-action:none}
+.grip::before{content:"";display:block;width:40px;height:5px;border-radius:3px;background:var(--line);margin:0 auto 8px}
+.head{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.head h2{margin:0;font-size:15px;font-weight:700}
+.head small{color:var(--muted);font-size:12px}
+.opts{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.opts label{font-size:12px;color:var(--ink-2);display:flex;align-items:center;gap:4px;background:var(--paper);border-radius:8px;padding:4px 8px;cursor:pointer}
+.opts select{font:inherit;font-size:12px;border:1px solid var(--line);border-radius:8px;background:var(--paper);color:var(--ink);padding:3px 6px}
+.list{overflow-y:auto;flex:1;padding:0 max(12px,env(safe-area-inset-right,0px)) calc(env(safe-area-inset-bottom,0px) + 12px) max(12px,env(safe-area-inset-left,0px));-webkit-overflow-scrolling:touch}
+.item{display:grid;grid-template-columns:44px 1fr auto;gap:10px;align-items:center;padding:10px 4px;border-bottom:1px solid var(--line);cursor:pointer}
+.bowl{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;font-family:var(--f-disp);font-size:13px;color:#fff;position:relative;box-shadow:inset 0 -6px 0 rgba(0,0,0,.12)}
+.info{min-width:0}
+.nm{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nm span{font-weight:400;color:var(--muted);font-size:12px;margin-left:4px}
+.meta{font-size:12px;color:var(--ink-2);display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:2px}
+.abura{display:inline-flex;gap:2px}
+.abura b{width:6px;height:6px;border-radius:50%;background:var(--line)}
+.abura b.on{background:#e3b23c}
+.conf{font-size:10px;padding:1px 5px;border-radius:4px;background:var(--paper);color:var(--muted)}
+.conf.A{background:#dff3e4;color:#22663a}
+.dist{text-align:right;font-variant-numeric:tabular-nums;font-weight:700;font-size:14px}
+.dist small{display:block;font-weight:400;color:var(--muted);font-size:11px}
+.empty{padding:24px 8px;color:var(--muted);text-align:center;line-height:1.7}
+/* detail */
+.detail{padding:4px 4px 16px}
+.detail h3{font-family:var(--f-disp);font-weight:400;font-size:20px;margin:6px 0 2px;text-wrap:balance}
+.detail .sub{color:var(--muted);font-size:13px}
+.kv{display:grid;grid-template-columns:84px 1fr;gap:6px 10px;margin:12px 0;font-size:13px}
+.kv dt{color:var(--muted)}
+.kv dd{margin:0;min-width:0;overflow-wrap:anywhere}
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.actions a{display:flex;justify-content:center;align-items:center;gap:6px;text-decoration:none;font-weight:700;border-radius:12px;padding:12px;font-size:14px}
+.go{background:var(--naruto);color:#fff}
+.alt{background:var(--paper);color:var(--ink);border:1px solid var(--line)}
+.back{border:0;background:none;color:var(--naruto);font:inherit;font-weight:700;padding:4px 0;cursor:pointer}
+.note{font-size:11px;color:var(--muted);line-height:1.6;margin-top:12px}
+.leaflet-control-attribution{font-size:9px}
+.leaflet-top{top:calc(env(safe-area-inset-top,0px) + 110px)}
+.me{width:16px;height:16px;border-radius:50%;background:#2f7bf6;border:3px solid #fff;box-shadow:0 0 0 6px rgba(47,123,246,.25)}
+.toast{position:fixed;left:50%;transform:translateX(-50%);top:calc(env(safe-area-inset-top,0px) + 118px);z-index:40;background:var(--ink);color:var(--paper);padding:8px 14px;border-radius:10px;font-size:13px;max-width:90vw}
+@media (prefers-reduced-motion:reduce){.sheet{transition:none}}
+</style>
+</head>
+<body>
+<div id="map" aria-label="地図"></div>
+
+<div class="top">
+  <div class="bar">
+    <div class="logo">らーめん<b>羅針盤</b></div>
+    <input id="q" type="search" placeholder="気分で検索：濃厚 魚介、あっさり 塩…" autocomplete="off" enterkeyhint="search">
+    <button class="icon-btn" id="locate" title="現在地">現在地</button>
+  </div>
+  <div class="moods" id="moods" role="toolbar" aria-label="気分"></div>
+</div>
+
+<section class="sheet" id="sheet" aria-label="近くのラーメン">
+  <div class="grip" id="grip">
+    <div class="head"><h2 id="title">近い順</h2><small id="count"></small></div>
+    <div class="opts">
+      <label><input type="checkbox" id="openNow"> 今営業中（時間判明店）</label>
+      <label><input type="checkbox" id="sure"> 系統が確かな店だけ</label>
+      <label>範囲 <select id="radius"><option value="1">1km</option><option value="3" selected>3km</option><option value="10">10km</option><option value="50">50km</option><option value="0">表示中の地図</option></select></label>
+    </div>
+  </div>
+  <div class="list" id="list"><div class="empty">データを読み込み中…</div></div>
+</section>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+const CAT = {
+  "醤油":["#7a4a24","醤"], "塩":["#c9b27a","塩"], "味噌":["#b9771f","味"], "豚骨":["#d8c3a5","豚"],
+  "豚骨醤油":["#9b5c2e","豚醤"], "牛骨":["#8c3b2a","牛"], "家系":["#c4632b","家"], "二郎系":["#3b3030","二"], "鶏白湯":["#e0b34a","鶏"],
+  "煮干し":["#6b7a8f","干"], "魚介豚骨":["#8a7a3d","魚"], "担々麺":["#d0612f","担"], "辛系":["#c8302e","辛"],
+  "油そば・まぜそば":["#a3762f","油"], "貝・海鮮":["#3f8a9a","貝"], "ちゃんぽん":["#7aa35a","ち"],
+  "タンメン・野菜":["#5f9e57","菜"], "町中華":["#a8483f","中"], "創作・その他":["#8a6fb0","創"], "":["#9a9aa6","?"]
+};
+// 気分チップ: [ラベル, 検索語]
+const MOODS = [
+  ["ガツンとこってり","こってり"],["あっさり優しい","あっさり"],["豚骨","豚骨"],["醤油","醤油"],["味噌","味噌"],["塩","塩"],
+  ["牛骨","牛骨"],["家系","家系"],["二郎系","二郎"],["鶏白湯","鶏白湯"],["煮干し","煮干し"],["濃厚魚介つけ麺","つけ麺"],["辛いの","辛い"],
+  ["汁なし・油そば","汁なし"],["貝・海鮮だし","貝"],["昔ながら中華そば","中華そば"],["野菜たっぷり","野菜"],["町中華","町中華"]
+];
+// 気分ワード → 照合語（いずれかを含めばOK）
+const SYN = {
+  "豚骨":["豚骨","とんこつ","家系","二郎系"], "とんこつ":["豚骨"], "醤油":["醤油","豚骨醤油","家系"], "しょうゆ":["醤油"],
+  "味噌":["味噌"], "みそ":["味噌"], "塩":["塩"], "しお":["塩"], "鶏":["鶏","鶏白湯"], "鶏白湯":["鶏白湯"], "とり":["鶏"],
+  "煮干し":["煮干し"], "にぼし":["煮干し"], "ニボ":["煮干し"], "魚介":["魚介","煮干し","貝"], "貝":["貝","貝・海鮮"], "海鮮":["貝・海鮮","海老","魚介"],
+  "つけ麺":["つけ麺","魚介豚骨"], "辛い":["辛い","辛系","担々麺"], "激辛":["辛い","辛系"], "辛":["辛い","辛系","担々"], "担々":["担々"], "担々麺":["担々"],
+  "汁なし":["汁なし","油そば・まぜそば"], "油そば":["油そば"], "まぜそば":["まぜそば","油そば"], "家系":["家系"], "二郎":["二郎系"], "ジロー":["二郎系"], "マシマシ":["二郎系"],
+  "中華そば":["醤油","昔ながら","中華そば","煮干し"], "昔ながら":["昔ながら","醤油","町中華"], "町中華":["町中華"], "野菜":["野菜","タンメン"], "タンメン":["タンメン"],
+  "牛骨":["牛骨"], "背脂":["背脂","二郎系"], "にんにく":["にんにく","二郎系"], "博多":["博多","豚骨"], "替え玉":["替え玉","豚骨"], "ちゃんぽん":["ちゃんぽん"], "太麺":["太","極太"], "細麺":["細"]
+};
+const RICH = /^(こってり|濃厚|ガッツリ|がっつり|ギトギト|ドロドロ|重め)$/, LIGHT = /^(あっさり|さっぱり|優しい|やさしい|軽め|すっきり)$/;
+
+let rows=[], here=null, map, layer, meMarker, active=new Set(), sel=null, lastList=[];
+const $=id=>document.getElementById(id);
+const toast=(t)=>{const e=document.createElement('div');e.className='toast';e.textContent=t;document.body.appendChild(e);setTimeout(()=>e.remove(),2600)};
+
+function initMap(){
+  map=L.map('map',{zoomControl:false,preferCanvas:true}).setView([34.7025,135.4959],14);
+  L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png',{maxZoom:18,attribution:'<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">地理院タイル</a> | 店舗 © OpenStreetMap contributors 他'}).addTo(map);
+  L.control.zoom({position:'topright'}).addTo(map);
+  layer=L.layerGroup().addTo(map);
+  map.on('moveend',()=>{ if($('radius').value==='0'||!here) render(); });
+}
+
+function km(a,b,c,d){const R=6371,t=Math.PI/180,x=(c-a)*t,y=(d-b)*t,h=Math.sin(x/2)**2+Math.cos(a*t)*Math.cos(c*t)*Math.sin(y/2)**2;return 2*R*Math.asin(Math.sqrt(h))}
+
+// OSM opening_hours の簡易判定 → true/false/null
+const DAYS=["Su","Mo","Tu","We","Th","Fr","Sa"];
+function openNow(h){
+  if(!h) return null; const now=new Date(), d=now.getDay(), m=now.getHours()*60+now.getMinutes();
+  if(/24\/7/.test(h)) return true;
+  let known=false, open=false;
+  for(const part of h.split(';')){
+    const p=part.trim(); if(!p) continue;
+    let mm=p.match(/^((?:[A-Z][a-z](?:-[A-Z][a-z])?,?)+)\s+(.*)$/), days=null, times=p;
+    if(mm){days=mm[1];times=mm[2]}
+    if(/off|closed/i.test(times)) { if(days&&dayIn(days,d)){known=true;open=false} continue; }
+    if(days && !dayIn(days,d)) { known=true; continue; }
+    for(const t of times.split(',')){
+      const q=t.trim().match(/^(\d{1,2}):(\d{2})-(\d{1,2}):(\d{2})/); if(!q) continue;
+      known=true; let s=+q[1]*60+ +q[2], e=+q[3]*60+ +q[4]; if(e<=s) e+=1440;
+      if((m>=s&&m<e)||(m+1440>=s&&m+1440<e)) open=true;
+    }
+  }
+  return known?open:null;
+}
+function dayIn(spec,d){
+  for(const s of spec.split(',')){
+    const [a,b]=s.split('-'); const i=DAYS.indexOf(a), j=b?DAYS.indexOf(b):i; if(i<0) continue;
+    if(i<=j ? (d>=i&&d<=j) : (d>=i||d<=j)) return true;
+  }
+  return false;
+}
+
+function terms(){
+  const t=$('q').value.trim().split(/[\s　、,]+/).filter(Boolean);
+  active.forEach(a=>t.push(a));
+  return t;
+}
+function match(r,ts){
+  const hay=r[6]+' '+r[7]+' '+r[9]+' '+r[10]+' '+r[11]+' '+r[16]+' '+r[0];
+  for(const t of ts){
+    if(RICH.test(t)){ if(r[8]<4) return false; continue; }
+    if(LIGHT.test(t)){ if(!(r[8]>0&&r[8]<=2)) return false; continue; }
+    const syn=SYN[t]||[t];
+    if(!syn.some(s=>hay.includes(s))) return false;
+  }
+  return true;
+}
+
+function render(){
+  if(!rows.length) return;
+  const ts=terms(), rad=+$('radius').value, onlyOpen=$('openNow').checked, sure=$('sure').checked;
+  const c=here||map.getCenter(); const lat=c.lat, lng=c.lng;
+  const b=map.getBounds();
+  let out=[];
+  for(const r of rows){
+    if(rad===0){ if(!b.contains([r[4],r[5]])) continue; }
+    else { if(Math.abs(r[4]-lat)>rad/90 || Math.abs(r[5]-lng)>rad/70) continue; }
+    const dk=km(lat,lng,r[4],r[5]); if(rad>0&&dk>rad) continue;
+    if(sure && !/^(A|B)/.test(r[12])) continue;
+    if(ts.length && !match(r,ts)) continue;
+    if(onlyOpen && openNow(r[13])!==true) continue;
+    out.push([dk,r]);
+  }
+  out.sort((a,b)=>a[0]-b[0]);
+  lastList=out;
+  layer.clearLayers();
+  out.slice(0,1500).forEach(([dk,r])=>{
+    const col=(CAT[r[6]]||CAT[""])[0];
+    L.circleMarker([r[4],r[5]],{radius:7,color:'#fff',weight:2,fillColor:col,fillOpacity:.95}).addTo(layer).on('click',()=>showDetail(r,dk));
+  });
+  $('title').textContent = ts.length ? '「'+ts.join(' ')+'」の近い順' : (here?'現在地から近い順':'地図の中心から近い順');
+  $('count').textContent = out.length.toLocaleString()+'件';
+  if(sel) return;
+  const L2=out.slice(0,200);
+  $('list').innerHTML = L2.length ? L2.map(([dk,r],i)=>itemHTML(r,dk,i)).join('') :
+    '<div class="empty">この範囲には見つかりませんでした。<br>範囲を広げるか、気分ワードを減らしてみてください。</div>';
+  $('list').querySelectorAll('.item').forEach(el=>{
+    const i=+el.dataset.i; const go=()=>{const [dk,r]=out[i];showDetail(r,dk)};
+    el.onclick=go; el.onkeydown=e=>{if(e.key==='Enter')go()};
+  });
+}
+const esc=s=>String(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function abura(k){let s='<span class="abura" title="こってり度 '+(k||'不明')+'">';for(let i=1;i<=5;i++)s+='<b class="'+(i<=k?'on':'')+'"></b>';return s+'</span>'}
+function confLabel(c){return {A:'Web確認',"A-":'Web推定',B:'チェーン',C:'推定',D:'地域推定',"未":'系統未確認'}[c]||'系統未確認'}
+function fmtD(dk){return dk<1?Math.round(dk*1000)+'m':dk.toFixed(1)+'km'}
+function itemHTML(r,dk,i){
+  const [col,ch]=CAT[r[6]]||CAT[""];
+  const op=openNow(r[13]);
+  return `<div class="item" tabindex="0" data-i="${i}">
+    <div class="bowl" style="background:${col}">${ch}</div>
+    <div class="info"><div class="nm">${esc(r[0])}<span>${esc(r[1])}</span></div>
+      <div class="meta">${esc(r[6]||'系統不明')}${r[7]?' / '+esc(r[7].split(';')[0]):''} ${r[8]?abura(r[8]):''}
+      <span class="conf ${r[12]==='A'||r[12]==='B'?'A':''}">${confLabel(r[12])}</span>${op===true?'<span class="conf A">営業中</span>':op===false?'<span class="conf">営業時間外</span>':''}</div></div>
+    <div class="dist">${fmtD(dk)}<small>${here?'徒歩'+Math.max(1,Math.round(dk*1000/80))+'分':''}</small></div></div>`;
+}
+function showDetail(r,dk){
+  sel=r; $('sheet').className='sheet';
+  map.setView([r[4],r[5]],Math.max(map.getZoom(),16));
+  const dest=r[4]+','+r[5];
+  const qname=encodeURIComponent(r[0]+' '+(r[1]||'')+' '+r[2]+r[3]);
+  const kv=[['系統',(r[6]||'不明')+(r[7]?'（'+r[7].replace(/;/g,'・')+'）':'')],['こってり度',r[8]?abura(r[8])+' '+r[8]+'/5':'不明'],
+    ['味の特徴',esc((r[9]||'').replace(/;/g,'・'))],['看板',esc(r[16])],['麺',esc(r[11])],['ご当地',esc(r[10])],
+    ['営業時間',esc(r[13])],['住所',esc(r[17]||r[2]+r[3])],['電話',esc(r[18])],['判定',confLabel(r[12])]].filter(x=>x[1]);
+  $('list').innerHTML=`<div class="detail"><button class="back" id="back">← 一覧に戻る</button>
+    <h3>${esc(r[0])}</h3><div class="sub">${esc(r[1])} ${esc(r[2]+r[3])} ・ ${fmtD(dk)}</div>
+    <dl class="kv">${kv.map(([k,v])=>`<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>
+    <div class="actions"><a class="go" target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&destination=${dest}&travelmode=walking">Googleマップで案内</a>
+    <a class="alt" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=${qname}">口コミ・写真を見る</a>
+    ${r[14]?`<a class="alt" target="_blank" rel="noopener" href="${esc(r[14])}">公式サイト</a>`:''}
+    ${r[15]?`<a class="alt" target="_blank" rel="noopener" href="https://www.instagram.com/${esc(r[15].replace(/^@|https?:\/\/(www\.)?instagram\.com\//,''))}">Instagram</a>`:''}</div>
+    <p class="note">営業状況・系統は公開情報からの推定を含みます。お出かけ前にGoogleマップで最新の営業情報を確認してください。</p></div>`;
+  $('back').onclick=()=>{sel=null;render()};
+}
+
+function buildMoods(){
+  $('moods').innerHTML=MOODS.map(([l,t])=>{const c=(CAT[t]||CAT[{"二郎":"二郎系","つけ麺":"魚介豚骨","辛い":"辛系","汁なし":"油そば・まぜそば","貝":"貝・海鮮","中華そば":"醤油","野菜":"タンメン・野菜"}[t]]||[null])[0];
+    return `<button class="chip" aria-pressed="false" data-t="${t}">${c?`<i style="background:${c}"></i>`:''}${l}</button>`}).join('');
+  $('moods').querySelectorAll('.chip').forEach(b=>b.onclick=()=>{
+    const t=b.dataset.t, on=b.getAttribute('aria-pressed')!=='true';
+    b.setAttribute('aria-pressed',on); on?active.add(t):active.delete(t); sel=null; render();
+  });
+}
+
+function locate(){
+  if(!navigator.geolocation){toast('この端末では現在地が使えません');return}
+  $('locate').textContent='…';
+  navigator.geolocation.getCurrentPosition(p=>{
+    here={lat:p.coords.latitude,lng:p.coords.longitude}; $('locate').textContent='現在地';
+    if(meMarker) meMarker.remove();
+    meMarker=L.marker([here.lat,here.lng],{icon:L.divIcon({className:'',html:'<div class="me"></div>',iconSize:[16,16]})}).addTo(map);
+    map.setView([here.lat,here.lng],15); sel=null; render();
+  },e=>{$('locate').textContent='現在地';toast('現在地を取得できませんでした。地図を動かすと中心から探せます');},{enableHighAccuracy:true,timeout:10000,maximumAge:60000});
+}
+
+// シートの高さ切替（タップ / スワイプ）
+(function(){const s=$('sheet'),g=$('grip');let y0=null;
+  g.addEventListener('pointerdown',e=>{if(e.target.closest('label,select,input'))return;y0=e.clientY});
+  g.addEventListener('pointerup',e=>{if(y0===null)return;const dy=e.clientY-y0;y0=null;
+    const st=s.classList.contains('tall')?2:s.classList.contains('low')?0:1;
+    let n=Math.abs(dy)<8?(st+1)%3:dy<0?Math.min(2,st+1):Math.max(0,st-1);
+    s.className='sheet'+(n===2?' tall':n===0?' low':'');});
+})();
+
+let tmr; $('q').addEventListener('input',()=>{clearTimeout(tmr);tmr=setTimeout(()=>{sel=null;render()},250)});
+['openNow','sure','radius'].forEach(id=>$(id).addEventListener('change',()=>{sel=null;render()}));
+$('locate').onclick=locate;
+initMap(); buildMoods();
+fetch('data.json').then(r=>r.json()).then(j=>{rows=j.rows;render();locate();})
+  .catch(()=>{$('list').innerHTML='<div class="empty">データを読み込めませんでした。電波の良い場所で再読み込みしてください。</div>'});
+</script>
+</body>
+</html>
