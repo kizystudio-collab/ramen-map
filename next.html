@@ -1,0 +1,467 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
+<title>らーめん羅針盤</title>
+<meta name="theme-color" content="#ffffff">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Roboto:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* Google マップ（モバイル / Web）の見た目と動きに寄せた UI */
+:root{
+  --blue:#1a73e8; --blue-soft:#e8f0fe; --red:#ea4335;
+  --text:#202124; --text-2:#5f6368; --line:#dadce0; --bg:#fff; --bg-2:#f1f3f4;
+  --shadow:0 1px 2px rgba(60,64,67,.3),0 2px 6px 2px rgba(60,64,67,.15);
+  --shadow-up:0 -1px 3px rgba(60,64,67,.2),0 -4px 12px rgba(60,64,67,.12);
+  --ease:cubic-bezier(.2,0,0,1);           /* Material emphasized */
+  --f:"Roboto","Noto Sans JP","Hiragino Sans",system-ui,sans-serif;
+  --top:calc(env(safe-area-inset-top,0px) + 112px);
+  color-scheme:light;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;margin:0}
+body{font-family:var(--f);background:#e5e3df;color:var(--text);font-size:14px;overflow:hidden;overscroll-behavior:none}
+#map{position:fixed;inset:0;z-index:0}
+button{font:inherit;color:inherit}
+
+/* ---- 検索ボックス + チップ ---- */
+.top{position:fixed;left:0;right:0;top:0;z-index:20;padding:calc(env(safe-area-inset-top,0px) + 8px) 0 0;pointer-events:none;transition:transform .3s var(--ease),opacity .2s}
+.top.hide{transform:translateY(-130%);opacity:0}
+.search{pointer-events:auto;margin:0 max(12px,env(safe-area-inset-left,0px));display:flex;align-items:center;height:48px;background:var(--bg);border-radius:24px;box-shadow:var(--shadow);padding:0 6px 0 14px;gap:8px}
+.search .logo{width:26px;height:26px;border-radius:50%;flex:none;background:#fff url(icon.png) center/cover;box-shadow:0 0 0 1px var(--line)}
+#q{flex:1;min-width:0;border:0;background:transparent;font:inherit;font-size:16px;color:var(--text);outline:none;height:100%}
+#q::placeholder{color:var(--text-2)}
+#q::-webkit-search-cancel-button{display:none}
+.round{width:40px;height:40px;border:0;border-radius:50%;background:transparent;display:grid;place-items:center;cursor:pointer;color:var(--text-2);flex:none}
+.round:active{background:var(--bg-2)}
+.round svg{width:22px;height:22px}
+#clearQ{display:none}
+.chips{pointer-events:auto;display:flex;gap:8px;overflow-x:auto;padding:10px max(12px,env(safe-area-inset-left,0px)) 8px;scrollbar-width:none;scroll-snap-type:x proximity}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:none;height:32px;border:0;background:var(--bg);border-radius:16px;padding:0 12px;font-size:14px;font-weight:500;cursor:pointer;display:flex;align-items:center;gap:6px;box-shadow:var(--shadow);white-space:nowrap;transition:background .15s,color .15s;scroll-snap-align:start}
+.chip i{width:8px;height:8px;border-radius:50%}
+.chip[aria-pressed="true"]{background:#d3e3fd;color:#041e49}
+.chip:active{background:var(--bg-2)}
+
+/* ---- このエリアを検索 ---- */
+#reSearch{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 116px);z-index:19;transform:translate(-50%,-8px) scale(.9);opacity:0;pointer-events:none;border:0;background:var(--bg);color:var(--blue);font-weight:500;height:36px;border-radius:18px;padding:0 16px;box-shadow:var(--shadow);display:flex;align-items:center;gap:6px;cursor:pointer;transition:transform .25s var(--ease),opacity .2s}
+#reSearch.on{opacity:1;transform:translate(-50%,0) scale(1);pointer-events:auto}
+#reSearch svg{width:18px;height:18px}
+
+/* ---- 右下 FAB（現在地） ---- */
+.fabs{position:fixed;right:max(12px,env(safe-area-inset-right,0px));z-index:25;display:flex;flex-direction:column;gap:12px;transition:transform .35s var(--ease),opacity .2s;will-change:transform}
+.fab{width:48px;height:48px;border-radius:50%;border:0;background:var(--bg);box-shadow:var(--shadow);display:grid;place-items:center;cursor:pointer;color:var(--text-2)}
+.fab svg{width:24px;height:24px}
+.fab.on{color:var(--blue)}
+.fab:active{background:var(--bg-2)}
+
+/* ---- ボトムシート（指に追従して3段スナップ） ---- */
+.sheet{position:fixed;left:0;right:0;top:0;height:100%;z-index:30;background:var(--bg);border-radius:28px 28px 0 0;box-shadow:var(--shadow-up);display:flex;flex-direction:column;will-change:transform;touch-action:none}
+.sheet.anim{transition:transform .38s var(--ease)}
+.handle{flex:none;padding:10px 16px 4px;cursor:grab}
+.handle::before{content:"";display:block;width:32px;height:4px;border-radius:2px;background:#c4c7c5;margin:0 auto 10px}
+.shead{display:flex;align-items:center;gap:8px;padding:0 16px}
+.shead h2{margin:0;font-size:18px;font-weight:500;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.shead small{color:var(--text-2);font-size:13px}
+.filters{display:flex;gap:8px;overflow-x:auto;padding:10px 16px 8px;scrollbar-width:none}
+.filters::-webkit-scrollbar{display:none}
+.fchip{flex:none;height:32px;border:1px solid #747775;background:var(--bg);border-radius:8px;padding:0 12px;font-size:14px;font-weight:500;cursor:pointer;display:flex;align-items:center;gap:6px;color:#444746}
+.fchip[aria-pressed="true"]{background:#c2e7ff;border-color:#c2e7ff;color:#001d35}
+.fchip select{border:0;background:transparent;font:inherit;color:inherit;outline:none;padding:0;cursor:pointer}
+.body{flex:1;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding-bottom:calc(env(safe-area-inset-bottom,0px) + 24px);touch-action:pan-y}
+.item{display:flex;gap:12px;padding:14px 16px;border-top:1px solid #e9eaeb;cursor:pointer;transition:background .15s}
+.item:active,.item.hl{background:var(--bg-2)}
+.item .tx{flex:1;min-width:0}
+.item .nm{font-size:16px;font-weight:500;line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.line{color:var(--text-2);font-size:14px;line-height:1.5;display:flex;align-items:center;gap:4px;flex-wrap:wrap}
+.dot{width:3px;height:3px;border-radius:50%;background:var(--text-2);display:inline-block;margin:0 2px}
+.open{color:#188038;font-weight:500}.closed{color:#d93025;font-weight:500}
+.thumb{width:84px;height:84px;border-radius:8px;flex:none;display:grid;place-items:center;color:#fff;font-size:30px;font-weight:700}
+.abura{display:inline-flex;gap:2px;vertical-align:middle}
+.abura b{width:7px;height:7px;border-radius:50%;background:#dadce0}
+.abura b.on{background:#f29900}
+.tag{display:inline-block;font-size:12px;padding:1px 6px;border-radius:4px;background:var(--bg-2);color:var(--text-2)}
+.tag.ok{background:#e6f4ea;color:#137333}
+.sheet.det .shead,.sheet.det .filters{display:none}
+.sheet.det .handle{padding-bottom:0}
+.empty{padding:32px 24px;color:var(--text-2);text-align:center;line-height:1.7}
+
+/* ---- 場所の詳細 ---- */
+.pl{padding:0 0 16px;position:relative}
+.pl h1{padding-right:44px}
+.pl h1{font-size:22px;font-weight:400;margin:2px 16px 4px;line-height:1.3}
+.pl .line{padding:0 16px}
+.acts{display:flex;gap:8px;overflow-x:auto;padding:14px 16px 12px;scrollbar-width:none}
+.acts::-webkit-scrollbar{display:none}
+.act{flex:none;height:40px;border-radius:20px;padding:0 16px;display:flex;align-items:center;gap:8px;font-weight:500;font-size:14px;text-decoration:none;cursor:pointer;border:0;background:#c2e7ff;color:#001d35}
+.act.pri{background:#0b57d0;color:#fff}
+.act svg{width:18px;height:18px}
+.rows{border-top:1px solid #e9eaeb;margin-top:4px}
+.row{display:flex;gap:20px;align-items:flex-start;padding:14px 16px;font-size:14px;line-height:1.5}
+.row svg{width:22px;height:22px;flex:none;color:var(--blue)}
+.row a{color:var(--text);text-decoration:none;overflow-wrap:anywhere}
+.row>div{min-width:0}
+.note{font-size:12px;color:var(--text-2);line-height:1.6;padding:8px 16px}
+.closeX{position:absolute;right:12px;top:-4px;width:36px;height:36px;border-radius:50%;border:0;background:var(--bg-2);display:grid;place-items:center;cursor:pointer;color:var(--text-2)}
+.closeX svg{width:20px;height:20px}
+
+/* ---- 地図上のピン ---- */
+.mk{position:relative;display:flex;align-items:center;transform-origin:50% 50%;animation:pop .22s var(--ease) both;cursor:pointer}
+.mk .c{width:22px;height:22px;border-radius:50%;border:1.5px solid #fff;display:grid;place-items:center;color:#fff;font-size:11px;font-weight:700;box-shadow:0 1px 3px rgba(0,0,0,.35)}
+.mk .lb{position:absolute;left:26px;top:50%;transform:translateY(-50%);font-size:12px;font-weight:500;white-space:nowrap;color:#3c4043;text-shadow:0 0 2px #fff,0 0 2px #fff,0 0 3px #fff,0 0 4px #fff;pointer-events:none;max-width:140px;overflow:hidden;text-overflow:ellipsis;display:none}
+.showlb .mk .lb{display:block}
+@keyframes pop{from{transform:scale(.3);opacity:0}to{transform:scale(1);opacity:1}}
+/* 選択中: 赤い大きなピンが落ちてきて弾む */
+.pin{position:relative;width:40px;height:52px;transform-origin:50% 100%;animation:drop .5s cubic-bezier(.3,1.5,.6,1) both}
+.pin svg{width:40px;height:52px;filter:drop-shadow(0 2px 2px rgba(0,0,0,.3))}
+.pin span{position:absolute;left:0;right:0;top:9px;text-align:center;color:#fff;font-weight:700;font-size:14px}
+@keyframes drop{0%{transform:translateY(-40px) scale(.6);opacity:0}60%{transform:translateY(0) scale(1.05);opacity:1}100%{transform:translateY(0) scale(1)}}
+/* 現在地: 青い点＋ゆっくり脈打つ輪 */
+.me{width:18px;height:18px;border-radius:50%;background:#4285f4;border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.35);position:relative}
+.me::after{content:"";position:absolute;inset:-14px;border-radius:50%;background:rgba(66,133,244,.25);animation:pulse 2.2s ease-out infinite}
+@keyframes pulse{0%{transform:scale(.4);opacity:1}100%{transform:scale(1.4);opacity:0}}
+
+.toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 24px);transform:translate(-50%,20px);opacity:0;z-index:60;background:#323232;color:#fff;padding:14px 16px;border-radius:4px;font-size:14px;max-width:min(560px,92vw);box-shadow:var(--shadow);transition:transform .25s var(--ease),opacity .25s}
+.toast.on{transform:translate(-50%,0);opacity:1}
+.cover{position:fixed;inset:0;z-index:70;background:#fff;display:grid;place-items:center;padding:24px;text-align:center;color:var(--text-2);line-height:1.8}
+
+/* ---- PC: 左サイドパネル（Google マップ Web 版の配置） ---- */
+@media (min-width:900px){
+  .top{left:0;right:auto;width:408px;padding-top:12px}
+  .search{margin:0 12px 0 16px}
+  .chips{position:fixed;left:432px;right:0;top:12px;padding:6px 16px}
+  .sheet{left:0;right:auto;width:408px;top:0;height:100%;transform:none!important;border-radius:0;box-shadow:0 0 20px rgba(0,0,0,.18);padding-top:76px}
+  .handle::before{display:none}
+  .fabs{bottom:24px!important;transform:none!important}
+  #reSearch{left:calc(50% + 204px);top:64px}
+  .toast{left:calc(50% + 204px)}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div id="map" aria-label="地図"></div>
+
+<div class="top" id="top">
+  <div class="search">
+    <div class="logo" aria-hidden="true"></div>
+    <input id="q" type="search" placeholder="ラーメンを検索（例：濃厚 魚介）" autocomplete="off" enterkeyhint="search" aria-label="検索">
+    <button class="round" id="clearQ" aria-label="検索語を消す"><svg viewBox="0 0 24 24"><path fill="currentColor" d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button>
+  </div>
+  <div class="chips" id="moods" role="toolbar" aria-label="気分"></div>
+</div>
+
+<button id="reSearch"><svg viewBox="0 0 24 24"><path fill="currentColor" d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14"/></svg>このエリアを検索</button>
+
+<div class="fabs" id="fabs">
+  <button class="fab" id="locate" aria-label="現在地"><svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8m8.94 3A8.99 8.99 0 0 0 13 3.06V1h-2v2.06A8.99 8.99 0 0 0 3.06 11H1v2h2.06A8.99 8.99 0 0 0 11 20.94V23h2v-2.06A8.99 8.99 0 0 0 20.94 13H23v-2zM12 19c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7"/></svg></button>
+</div>
+
+<section class="sheet" id="sheet" aria-label="検索結果">
+  <div class="handle" id="handle">
+    <div class="shead"><h2 id="title">近くのラーメン</h2><small id="count"></small></div>
+  </div>
+  <div class="filters" id="filters">
+    <button class="fchip" id="fOpen" aria-pressed="false">営業中</button>
+    <button class="fchip" id="fSure" aria-pressed="false">系統が確かな店</button>
+    <label class="fchip">範囲 <select id="radius"><option value="1">1km</option><option value="3" selected>3km</option><option value="10">10km</option><option value="50">50km</option></select></label>
+  </div>
+  <div class="body" id="body"><div class="empty">データを読み込み中…</div></div>
+</section>
+
+<script>
+/* Google Maps JavaScript API キー（HTTP リファラーを https://kizystudio-collab.github.io/* に制限して使う） */
+const GMAPS_KEY = "";
+const MAP_ID = "DEMO_MAP_ID";
+
+const CAT = {
+  "醤油":["#7a4a24","醤"], "塩":["#b39a55","塩"], "味噌":["#b9771f","味"], "豚骨":["#c9a982","豚"],
+  "豚骨醤油":["#9b5c2e","豚"], "牛骨":["#8c3b2a","牛"], "家系":["#c4632b","家"], "二郎系":["#3b3030","二"], "鶏白湯":["#d9a531","鶏"],
+  "煮干し":["#6b7a8f","干"], "魚介豚骨":["#8a7a3d","魚"], "担々麺":["#d0612f","担"], "辛系":["#c8302e","辛"],
+  "油そば・まぜそば":["#a3762f","油"], "貝・海鮮":["#3f8a9a","貝"], "ちゃんぽん":["#6f9a50","ち"],
+  "タンメン・野菜":["#5f9e57","菜"], "町中華":["#a8483f","中"], "創作・その他":["#8a6fb0","創"], "":["#80868b","麺"]
+};
+const MOODS = [
+  ["ガツンとこってり","こってり"],["あっさり","あっさり"],["豚骨","豚骨"],["醤油","醤油"],["味噌","味噌"],["塩","塩"],
+  ["家系","家系"],["二郎系","二郎"],["鶏白湯","鶏白湯"],["煮干し","煮干し"],["つけ麺","つけ麺"],["辛いの","辛い"],
+  ["汁なし・油そば","汁なし"],["貝・海鮮","貝"],["牛骨","牛骨"],["中華そば","中華そば"],["野菜たっぷり","野菜"],["町中華","町中華"]
+];
+const SYN = {
+  "豚骨":["豚骨","とんこつ","家系","二郎系"], "とんこつ":["豚骨"], "醤油":["醤油","豚骨醤油","家系"], "しょうゆ":["醤油"],
+  "味噌":["味噌"], "みそ":["味噌"], "塩":["塩"], "しお":["塩"], "鶏":["鶏","鶏白湯"], "鶏白湯":["鶏白湯"], "とり":["鶏"],
+  "煮干し":["煮干し"], "にぼし":["煮干し"], "ニボ":["煮干し"], "魚介":["魚介","煮干し","貝"], "貝":["貝","貝・海鮮"], "海鮮":["貝・海鮮","海老","魚介"],
+  "つけ麺":["つけ麺","魚介豚骨"], "辛い":["辛い","辛系","担々麺"], "激辛":["辛い","辛系"], "辛":["辛い","辛系","担々"], "担々":["担々"], "担々麺":["担々"],
+  "汁なし":["汁なし","油そば・まぜそば"], "油そば":["油そば"], "まぜそば":["まぜそば","油そば"], "家系":["家系"], "二郎":["二郎系"], "ジロー":["二郎系"], "マシマシ":["二郎系"],
+  "中華そば":["醤油","昔ながら","中華そば","煮干し"], "昔ながら":["昔ながら","醤油","町中華"], "町中華":["町中華"], "野菜":["野菜","タンメン"], "タンメン":["タンメン"],
+  "牛骨":["牛骨"], "背脂":["背脂","二郎系"], "にんにく":["にんにく","二郎系"], "博多":["博多","豚骨"], "替え玉":["替え玉","豚骨"], "ちゃんぽん":["ちゃんぽん"], "太麺":["太","極太"], "細麺":["細"]
+};
+const RICH=/^(こってり|濃厚|ガッツリ|がっつり|ギトギト|ドロドロ|重め)$/, LIGHT=/^(あっさり|さっぱり|優しい|やさしい|軽め|すっきり)$/;
+const ICON={
+  dir:'<svg viewBox="0 0 24 24"><path fill="currentColor" d="M21.71 11.29 12.71 2.29a1 1 0 0 0-1.41 0l-9 9a1 1 0 0 0 0 1.41l9 9a1 1 0 0 0 1.41 0l9-9a1 1 0 0 0 0-1.41M14 14.5V12h-4v3H8v-4a1 1 0 0 1 1-1h5V7.5l3.5 3.5z"/></svg>',
+  open:'<svg viewBox="0 0 24 24"><path fill="currentColor" d="M19 19H5V5h7V3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14c1.1 0 2-.9 2-2v-7h-2zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3z"/></svg>',
+  share:'<svg viewBox="0 0 24 24"><path fill="currentColor" d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11A2.99 2.99 0 0 0 21 5a3 3 0 1 0-5.91.7L8.04 9.81A2.99 2.99 0 0 0 3 12a2.99 2.99 0 0 0 5.04 2.19l7.12 4.16c-.05.21-.08.43-.08.65A2.92 2.92 0 1 0 18 16.08"/></svg>',
+  call:'<svg viewBox="0 0 24 24"><path fill="currentColor" d="M6.62 10.79a15.15 15.15 0 0 0 6.59 6.59l2.2-2.2a1 1 0 0 1 1.02-.24c1.12.37 2.33.57 3.57.57a1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.45.57 3.57a1 1 0 0 1-.25 1.02z"/></svg>',
+  web:'<svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20m6.93 6h-2.95a15.6 15.6 0 0 0-1.38-3.56A8.03 8.03 0 0 1 18.93 8M12 4.04c.83 1.2 1.48 2.53 1.91 3.96h-3.82c.43-1.43 1.08-2.76 1.91-3.96M4.26 14a8.2 8.2 0 0 1 0-4h3.38a16.5 16.5 0 0 0 0 4zm.81 2h2.95c.32 1.25.78 2.45 1.38 3.56A7.99 7.99 0 0 1 5.07 16m2.95-8H5.07a7.99 7.99 0 0 1 4.33-3.56A15.6 15.6 0 0 0 8.02 8M12 19.96c-.83-1.2-1.48-2.53-1.91-3.96h3.82c-.43 1.43-1.08 2.76-1.91 3.96M14.34 14H9.66a14.7 14.7 0 0 1 0-4h4.68a14.7 14.7 0 0 1 0 4m.25 5.56c.6-1.11 1.06-2.31 1.38-3.56h2.95a8.03 8.03 0 0 1-4.33 3.56M16.36 14a16.5 16.5 0 0 0 0-4h3.38a8.2 8.2 0 0 1 0 4z"/></svg>',
+  pin:'<svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7m0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5"/></svg>',
+  clock:'<svg viewBox="0 0 24 24"><path fill="currentColor" d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2M12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8m.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg>',
+  bowl:'<svg viewBox="0 0 24 24"><path fill="currentColor" d="M2 12h20a10 10 0 0 1-6 9.17V22H8v-.83A10 10 0 0 1 2 12m5-9 1.5 7H7L5.5 3zm4 0 1 7h-1.5l-1-7zm5.5 0L15 10h-1.5l1.5-7z"/></svg>',
+  info:'<svg viewBox="0 0 24 24"><path fill="currentColor" d="M11 7h2v2h-2zm0 4h2v6h-2zm1-9a10 10 0 1 0 0 20 10 10 0 0 0 0-20m0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8"/></svg>',
+  x:'<svg viewBox="0 0 24 24"><path fill="currentColor" d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>'
+};
+
+let rows=[], here=null, anchor=null, map, AdvMarker, active=new Set(), sel=null, selMarker=null, meMarker=null, markers=new Map(), results=[];
+const $=id=>document.getElementById(id);
+const esc=s=>String(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const isDesk=()=>matchMedia('(min-width:900px)').matches;
+function toast(t){const e=document.createElement('div');e.className='toast';e.textContent=t;if(!isDesk())e.style.bottom=(innerHeight-sheetY+16)+'px';document.body.appendChild(e);requestAnimationFrame(()=>e.classList.add('on'));setTimeout(()=>{e.classList.remove('on');setTimeout(()=>e.remove(),300)},3200)}
+function km(a,b,c,d){const R=6371,t=Math.PI/180,x=(c-a)*t,y=(d-b)*t,h=Math.sin(x/2)**2+Math.cos(a*t)*Math.cos(c*t)*Math.sin(y/2)**2;return 2*R*Math.asin(Math.sqrt(h))}
+const fmtD=dk=>dk<1?Math.round(dk*1000)+' m':dk.toFixed(1)+' km';
+const abura=k=>{let s='<span class="abura" aria-label="こってり度 '+k+'/5">';for(let i=1;i<=5;i++)s+='<b class="'+(i<=k?'on':'')+'"></b>';return s+'</span>'};
+const confLabel=c=>({A:'Web確認',"A-":'Web推定',B:'チェーン',C:'推定',D:'地域推定'}[c]||'系統未確認');
+
+/* 営業時間（OSM 形式）の簡易判定 */
+const DAYS=["Su","Mo","Tu","We","Th","Fr","Sa"];
+function dayIn(spec,d){for(const s of spec.split(',')){const [a,b]=s.split('-');const i=DAYS.indexOf(a),j=b?DAYS.indexOf(b):i;if(i<0)continue;if(i<=j?(d>=i&&d<=j):(d>=i||d<=j))return true}return false}
+function openNow(h){
+  if(!h) return null; const now=new Date(),d=now.getDay(),m=now.getHours()*60+now.getMinutes();
+  if(/24\/7/.test(h)) return true; let known=false,open=false;
+  for(const part of h.split(';')){const p=part.trim();if(!p)continue;let mm=p.match(/^((?:[A-Z][a-z](?:-[A-Z][a-z])?,?)+)\s+(.*)$/),days=null,times=p;if(mm){days=mm[1];times=mm[2]}
+    if(/off|closed/i.test(times)){if(days&&dayIn(days,d)){known=true;open=false}continue}
+    if(days&&!dayIn(days,d)){known=true;continue}
+    for(const t of times.split(',')){const q=t.trim().match(/^(\d{1,2}):(\d{2})-(\d{1,2}):(\d{2})/);if(!q)continue;known=true;let s=+q[1]*60+ +q[2],e=+q[3]*60+ +q[4];if(e<=s)e+=1440;if((m>=s&&m<e)||(m+1440>=s&&m+1440<e))open=true}}
+  return known?open:null;
+}
+function terms(){const t=$('q').value.trim().split(/[\s　、,]+/).filter(Boolean);active.forEach(a=>t.push(a));return t}
+function match(r,ts){const hay=r[6]+' '+r[7]+' '+r[9]+' '+r[10]+' '+r[11]+' '+r[16]+' '+r[0]+' '+r[1];
+  for(const t of ts){if(RICH.test(t)){if(r[8]<4)return false;continue}if(LIGHT.test(t)){if(!(r[8]>0&&r[8]<=2))return false;continue}
+    const syn=SYN[t]||[t];if(!syn.some(s=>hay.includes(s)))return false}return true}
+
+/* ========== ボトムシート（Google マップのように指に追従・慣性でスナップ） ========== */
+const sheet=$('sheet'), body=$('body');
+let snapIdx=1, sheetY=0;
+function snaps(){const H=innerHeight, top=parseInt(getComputedStyle(document.documentElement).getPropertyValue('--top'))||112;
+  return [H-(isDesk()?H:148), Math.round(H*0.52), Math.max(top-36, 72)]} // [peek, half, full] の translateY
+function setSheet(i,anim=true){
+  if(isDesk()){snapIdx=2;sheet.style.transform='';body.style.overflowY='auto';$('top').classList.remove('hide');return}
+  const s=snaps(); snapIdx=Math.max(0,Math.min(2,i)); sheetY=s[snapIdx];
+  sheet.classList.toggle('anim',anim); sheet.style.transform=`translateY(${sheetY}px)`;
+  body.style.overflowY=snapIdx===2?'auto':'hidden';
+  $('top').classList.toggle('hide',snapIdx===2&&!!sel);
+  placeFabs(sheetY,anim);
+}
+function placeFabs(y,anim){const f=$('fabs');f.style.transition=anim?'':'none';f.style.transform=`translateY(${y-innerHeight-12}px)`;f.style.bottom='0';f.style.opacity=y<innerHeight*0.4?0:1}
+(function(){
+  let y0=0,t0=0,start=0,drag=false,fromBody=false,lastY=0,lastT=0,vel=0;
+  const down=e=>{
+    if(isDesk()) return;
+    if(e.target.closest('select,a,.act,.fchip,.closeX')) return;
+    fromBody=!!e.target.closest('.body');
+    if(fromBody && snapIdx===2 && body.scrollTop>0) return;   // 全画面時はリストのスクロールを優先
+    drag=true; y0=lastY=e.clientY; t0=lastT=performance.now(); start=sheetY; vel=0; sheet.classList.remove('anim');
+  };
+  const move=e=>{
+    if(!drag) return; const dy=e.clientY-y0;
+    if(fromBody && snapIdx===2 && dy<0){drag=false;return}       // 上方向はスクロールに渡す
+    if(Math.abs(dy)<4) return;
+    const s=snaps(); let y=start+dy; if(y<s[2]) y=s[2]-(s[2]-y)*0.25; // 上端はゴムのように抵抗
+    sheetY=y; sheet.style.transform=`translateY(${y}px)`; placeFabs(y,false);
+    const now=performance.now(); vel=(e.clientY-lastY)/Math.max(1,now-lastT); lastY=e.clientY; lastT=now;
+    e.preventDefault();
+  };
+  const up=e=>{
+    if(!drag) return; drag=false; const dy=e.clientY-y0;
+    if(Math.abs(dy)<6 && !fromBody && performance.now()-t0<300){ setSheet(snapIdx===0?1:snapIdx===1?2:1); return } // タップで段切替
+    const s=snaps(); let i;
+    if(Math.abs(vel)>0.45) i = vel<0 ? Math.min(2,snapIdx+1) : Math.max(0,snapIdx-1);   // フリック
+    else { i=0; let best=1e9; s.forEach((v,k)=>{const d=Math.abs(v-sheetY); if(d<best){best=d;i=k}}) }
+    setSheet(i);
+  };
+  sheet.addEventListener('pointerdown',down);
+  addEventListener('pointermove',move,{passive:false});
+  addEventListener('pointerup',up); addEventListener('pointercancel',up);
+  addEventListener('resize',()=>setSheet(snapIdx,false));
+})();
+
+/* ========== 地図 ========== */
+function loadGoogle(){
+  if(!GMAPS_KEY){ document.body.insertAdjacentHTML('beforeend','<div class="cover">Google Maps の API キーが未設定です。<br>キーを設定すると地図が表示されます。</div>'); return Promise.reject('nokey') }
+  ((g)=>{var h,a,k,p="The Google Maps JavaScript API",c="google",l="importLibrary",q="__ib__",m=document,b=window;b=b[c]||(b[c]={});var d=b.maps||(b.maps={}),r=new Set,e=new URLSearchParams,u=()=>h||(h=new Promise(async(f,n)=>{await (a=m.createElement("script"));e.set("libraries",[...r]+"");for(k in g)e.set(k.replace(/[A-Z]/g,t=>"_"+t[0].toLowerCase()),g[k]);e.set("callback",c+".maps."+q);a.src=`https://maps.${c}apis.com/maps/api/js?`+e;d[q]=f;a.onerror=()=>h=n(Error(p+" could not load."));a.nonce=m.querySelector("script[nonce]")?.nonce||"";m.head.append(a)}));d[l]?console.warn(p+" only loads once. Ignoring:",g):d[l]=(f,...n)=>r.add(f)&&u().then(()=>d[l](f,...n))})({key:GMAPS_KEY,v:"weekly",language:"ja",region:"JP"});
+  return Promise.all([google.maps.importLibrary("maps"),google.maps.importLibrary("marker")]);
+}
+async function initMap(){
+  const [{Map},{AdvancedMarkerElement}] = await loadGoogle();
+  AdvMarker=AdvancedMarkerElement;
+  map=new Map($('map'),{
+    center:{lat:34.7025,lng:135.4959}, zoom:15, mapId:MAP_ID,
+    disableDefaultUI:true, clickableIcons:false, gestureHandling:'greedy',
+    zoomControl:isDesk(), zoomControlOptions:{position:google.maps.ControlPosition.RIGHT_BOTTOM},
+    keyboardShortcuts:true, isFractionalZoomEnabled:true
+  });
+  let userMoved=false;
+  map.addListener('dragstart',()=>{userMoved=true; if(!isDesk()&&snapIdx>0&&!sel) setSheet(0)});
+  map.addListener('zoom_changed',()=>{$('map').classList.toggle('showlb',map.getZoom()>=16.5)});
+  map.addListener('idle',()=>{drawMarkers(); if(userMoved&&anchor&&km(anchor.lat,anchor.lng,map.getCenter().lat(),map.getCenter().lng())>0.4) $('reSearch').classList.add('on'); userMoved=false});
+  map.addListener('click',()=>{ if(sel) closeDetail() });
+}
+
+/* 表示範囲内のピン（地図中心に近い順に最大 350 件）。差分更新でちらつかせない */
+function drawMarkers(){
+  if(!map||!rows.length) return;
+  const b=map.getBounds(); if(!b) return;
+  const c=map.getCenter(), ts=terms(), sure=$('fSure').getAttribute('aria-pressed')==='true', onlyOpen=$('fOpen').getAttribute('aria-pressed')==='true';
+  const want=[];
+  for(const r of rows){
+    if(!b.contains({lat:r[4],lng:r[5]})) continue;
+    if(sure && !/^(A|B)/.test(r[12])) continue;
+    if(ts.length && !match(r,ts)) continue;
+    if(onlyOpen && openNow(r[13])!==true) continue;
+    want.push([Math.abs(r[4]-c.lat())+Math.abs(r[5]-c.lng()),r]);
+  }
+  want.sort((a,b)=>a[0]-b[0]);
+  const keep=new Set();
+  for(const [,r] of want.slice(0,350)){
+    keep.add(r[19]); if(markers.has(r[19])) continue;
+    const [col,ch]=CAT[r[6]]||CAT[""];
+    const el=document.createElement('div'); el.className='mk';
+    el.innerHTML=`<div class="c" style="background:${col}">${ch}</div><div class="lb">${esc(r[0])}</div>`;
+    const m=new AdvMarker({map,position:{lat:r[4],lng:r[5]},content:el,title:r[0]+(r[1]?' '+r[1]:'')});
+    m.addListener('click',()=>openDetail(r,true));
+    markers.set(r[19],m);
+  }
+  for(const [id,m] of markers){ if(!keep.has(id)){ m.map=null; markers.delete(id) } }
+  if(sel && markers.has(sel[19])) markers.get(sel[19]).map=null;  // 選択中は赤ピンに置き換え
+}
+
+/* ========== 一覧 ========== */
+function computeList(){
+  const ts=terms(), rad=+$('radius').value, sure=$('fSure').getAttribute('aria-pressed')==='true', onlyOpen=$('fOpen').getAttribute('aria-pressed')==='true';
+  const o=anchor||here||(map?{lat:map.getCenter().lat(),lng:map.getCenter().lng()}:{lat:34.7025,lng:135.4959});
+  const out=[];
+  for(const r of rows){
+    if(Math.abs(r[4]-o.lat)>rad/90||Math.abs(r[5]-o.lng)>rad/70) continue;
+    const dk=km(o.lat,o.lng,r[4],r[5]); if(dk>rad) continue;
+    if(sure && !/^(A|B)/.test(r[12])) continue;
+    if(ts.length && !match(r,ts)) continue;
+    if(onlyOpen && openNow(r[13])!==true) continue;
+    out.push([dk,r]);
+  }
+  out.sort((a,b)=>a[0]-b[0]); results=out; return ts;
+}
+function renderList(){
+  if(!rows.length) return;
+  const ts=computeList();
+  $('title').textContent = ts.length ? ts.join(' ') : (here&&anchor===here?'現在地周辺のラーメン':'このエリアのラーメン');
+  $('count').textContent = results.length.toLocaleString()+' 件';
+  if(sel) return;
+  const L=results.slice(0,200);
+  body.innerHTML = L.length ? L.map(([dk,r],i)=>itemHTML(r,dk,i)).join('') :
+    '<div class="empty">この範囲には見つかりませんでした。<br>範囲を広げるか、条件を減らしてみてください。</div>';
+  body.scrollTop=0;
+}
+body.addEventListener('click',e=>{const it=e.target.closest('.item'); if(!it) return; const [,r]=results[+it.dataset.i]; openDetail(r,false)});
+body.addEventListener('pointerover',e=>{const it=e.target.closest('.item'); if(!it||!isDesk()) return; const r=results[+it.dataset.i][1]; const m=markers.get(r[19]); if(m) {m.content.style.transform='scale(1.35)'; it.onpointerleave=()=>m.content.style.transform=''}});
+function itemHTML(r,dk,i){
+  const [col,ch]=CAT[r[6]]||CAT[""], op=openNow(r[13]);
+  return `<div class="item" data-i="${i}" role="button" tabindex="0">
+    <div class="tx"><div class="nm">${esc(r[0])}${r[1]?' '+esc(r[1]):''}</div>
+      <div class="line">${r[8]?abura(r[8])+'<span class="dot"></span>':''}${esc(r[6]||'系統不明')}<span class="dot"></span>${fmtD(dk)}</div>
+      <div class="line">${esc(r[3]||r[2])}</div>
+      <div class="line">${op===true?'<span class="open">営業中</span>':op===false?'<span class="closed">営業時間外</span>':''}${op!==null?'<span class="dot"></span>':''}<span class="tag ${/^(A|B)/.test(r[12])?'ok':''}">${confLabel(r[12])}</span>${r[16]?'<span class="dot"></span>'+esc(r[16].split(/[;、]/)[0]):''}</div></div>
+    <div class="thumb" style="background:${col}" aria-hidden="true">${ch}</div></div>`;
+}
+
+/* ========== 場所の詳細（ピン or 一覧タップ） ========== */
+function selPinEl(r){const col='#ea4335',[,ch]=CAT[r[6]]||CAT[""];const d=document.createElement('div');d.className='pin';
+  d.innerHTML=`<svg viewBox="0 0 40 52"><path fill="${col}" stroke="#b31412" stroke-width="1" d="M20 1C9.5 1 1 9.4 1 19.8 1 33.6 20 51 20 51s19-17.4 19-31.2C39 9.4 30.5 1 20 1z"/></svg><span>${ch}</span>`;return d}
+function openDetail(r,fromMap){
+  sel=r; sheet.classList.add('det');
+  if(selMarker) selMarker.map=null;
+  if(map){
+    selMarker=new AdvMarker({map,position:{lat:r[4],lng:r[5]},content:selPinEl(r),zIndex:999,title:r[0]});
+    if(markers.has(r[19])) markers.get(r[19]).map=null;
+    // ピンがシートに隠れないよう、見えている地図領域の中央へ滑らかに移動
+    const target={lat:r[4],lng:r[5]};
+    if(!fromMap && map.getZoom()<16) map.setZoom(16);
+    map.panTo(target);
+    if(!isDesk()){ const visible=snaps()[1]; google.maps.event.addListenerOnce(map,'idle',()=>{}); setTimeout(()=>map.panBy(0,(innerHeight-visible)/2),0) }
+  }
+  const o=here||anchor; const dk=o?km(o.lat,o.lng,r[4],r[5]):null, op=openNow(r[13]);
+  const dest=r[4]+','+r[5], qname=encodeURIComponent(r[0]+' '+(r[1]||'')+' '+r[2]+r[3]);
+  const gm=`https://www.google.com/maps/search/?api=1&query=${qname}`;
+  const rowsHTML=[
+    [ICON.bowl,`${esc(r[6]||'系統不明')}${r[7]?'（'+esc(r[7].replace(/;/g,'・'))+'）':''}${r[8]?'<br>こってり度 '+abura(r[8])+' '+r[8]+'/5':''}${r[9]?'<br><span style="color:var(--text-2)">'+esc(r[9].replace(/;/g,'・'))+'</span>':''}`],
+    r[16]&&[ICON.info,'看板：'+esc(r[16])+(r[11]?'<br>麺：'+esc(r[11]):'')],
+    [ICON.pin,`<a href="${gm}" target="_blank" rel="noopener">${esc(r[17]||r[2]+r[3])}</a>`],
+    r[13]&&[ICON.clock,(op===true?'<span class="open">営業中</span> ・ ':op===false?'<span class="closed">営業時間外</span> ・ ':'')+esc(r[13])],
+    r[14]&&[ICON.web,`<a href="${esc(r[14])}" target="_blank" rel="noopener">${esc(r[14].replace(/^https?:\/\/(www\.)?/,'').split('/')[0])}</a>`],
+    r[18]&&[ICON.call,`<a href="tel:${esc(r[18])}">${esc(r[18])}</a>`],
+  ].filter(Boolean).map(([i,t])=>`<div class="row">${i}<div>${t}</div></div>`).join('');
+  body.innerHTML=`<div class="pl">
+    <button class="closeX" id="closeX" aria-label="閉じる">${ICON.x}</button>
+    <h1>${esc(r[0])}${r[1]?' <span style="font-size:16px;color:var(--text-2)">'+esc(r[1])+'</span>':''}</h1>
+    <div class="line">${r[8]?abura(r[8])+'<span class="dot"></span>':''}ラーメン店<span class="dot"></span>${esc(r[6]||'系統不明')}${dk!=null?'<span class="dot"></span>'+fmtD(dk):''}</div>
+    <div class="line" style="margin-top:2px"><span class="tag ${/^(A|B)/.test(r[12])?'ok':''}">${confLabel(r[12])}</span>${r[10]?'<span class="dot"></span>'+esc(r[10]):''}</div>
+    <div class="acts">
+      <a class="act pri" target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&destination=${dest}&travelmode=walking">${ICON.dir}経路</a>
+      <a class="act" target="_blank" rel="noopener" href="${gm}">${ICON.open}Google マップで開く</a>
+      ${r[18]?`<a class="act" href="tel:${esc(r[18])}">${ICON.call}電話</a>`:''}
+      <button class="act" id="shareB">${ICON.share}共有</button>
+    </div>
+    <div class="rows">${rowsHTML}</div>
+    <p class="note">系統・営業状況は公開情報からの推定を含みます。口コミ・写真・最新の営業情報は「Google マップで開く」から確認できます。</p></div>`;
+  body.scrollTop=0;
+  $('closeX').onclick=closeDetail;
+  $('shareB').onclick=()=>{const d={title:r[0],text:r[0]+'（'+(r[6]||'ラーメン')+'）',url:gm}; navigator.share?navigator.share(d).catch(()=>{}):(navigator.clipboard.writeText(gm),toast('リンクをコピーしました'))};
+  setSheet(1);
+}
+function closeDetail(){
+  if(selMarker){selMarker.map=null;selMarker=null}
+  sheet.classList.remove('det'); const r=sel; sel=null; if(r&&markers.has(r[19])) markers.get(r[19]).map=map;
+  $('top').classList.remove('hide'); renderList(); setSheet(1);
+}
+
+/* ========== 現在地 ========== */
+function locate(){
+  if(!navigator.geolocation){toast('この端末では現在地が使えません');return}
+  navigator.geolocation.getCurrentPosition(p=>{
+    here={lat:p.coords.latitude,lng:p.coords.longitude}; anchor=here; $('locate').classList.add('on');
+    if(map){
+      if(meMarker) meMarker.map=null;
+      const d=document.createElement('div'); d.className='me';
+      meMarker=new AdvMarker({map,position:here,content:d,zIndex:1000,title:'現在地'});
+      map.panTo(here); if(map.getZoom()<15) map.setZoom(15);
+    }
+    $('reSearch').classList.remove('on'); if(!sel) renderList();
+  },()=>toast('現在地を取得できませんでした。地図を動かして「このエリアを検索」で探せます'),{enableHighAccuracy:true,timeout:10000,maximumAge:60000});
+}
+
+/* ========== UI 配線 ========== */
+function buildMoods(){
+  const alias={"二郎":"二郎系","つけ麺":"魚介豚骨","辛い":"辛系","汁なし":"油そば・まぜそば","貝":"貝・海鮮","中華そば":"醤油","野菜":"タンメン・野菜"};
+  $('moods').innerHTML=MOODS.map(([l,t])=>{const c=(CAT[t]||CAT[alias[t]]||[null])[0];return `<button class="chip" aria-pressed="false" data-t="${t}">${c?`<i style="background:${c}"></i>`:''}${l}</button>`}).join('');
+  $('moods').addEventListener('click',e=>{const b=e.target.closest('.chip'); if(!b) return;
+    const t=b.dataset.t,on=b.getAttribute('aria-pressed')!=='true'; b.setAttribute('aria-pressed',on); on?active.add(t):active.delete(t);
+    if(sel) closeDetail(); else renderList(); drawMarkers(); if(snapIdx===0) setSheet(1)});
+}
+function toggle(id){const b=$(id);b.setAttribute('aria-pressed',b.getAttribute('aria-pressed')!=='true');if(sel)closeDetail();else renderList();drawMarkers()}
+$('fOpen').onclick=()=>toggle('fOpen'); $('fSure').onclick=()=>toggle('fSure');
+$('radius').onchange=()=>{if(sel)closeDetail();else renderList()};
+let tmr; $('q').addEventListener('input',()=>{$('clearQ').style.display=$('q').value?'grid':'none';clearTimeout(tmr);tmr=setTimeout(()=>{if(sel)closeDetail();else renderList();drawMarkers()},250)});
+$('q').addEventListener('keydown',e=>{if(e.key==='Enter'){$('q').blur();setSheet(1)}});
+$('clearQ').onclick=()=>{$('q').value='';$('clearQ').style.display='none';renderList();drawMarkers()};
+$('locate').onclick=locate;
+$('reSearch').onclick=()=>{const c=map.getCenter();anchor={lat:c.lat(),lng:c.lng()};$('reSearch').classList.remove('on');$('locate').classList.remove('on');if(sel)closeDetail();else renderList();setSheet(1)};
+addEventListener('keydown',e=>{if(e.key==='Escape'&&sel)closeDetail()});
+
+setSheet(1,false); buildMoods();
+initMap().catch(e=>console.warn(e)).finally(()=>{
+  fetch('data.json').then(r=>r.json()).then(j=>{rows=j.rows;renderList();drawMarkers();locate()})
+    .catch(()=>{body.innerHTML='<div class="empty">データを読み込めませんでした。電波の良い場所で再読み込みしてください。</div>'});
+});
+</script>
+</body>
+</html>
