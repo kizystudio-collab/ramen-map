@@ -80,7 +80,20 @@ button{font:inherit;color:inherit}
 .line{color:var(--text-2);font-size:14px;line-height:1.5;display:flex;align-items:center;gap:4px;flex-wrap:wrap}
 .dot{width:3px;height:3px;border-radius:50%;background:var(--text-2);display:inline-block;margin:0 2px}
 .open{color:#188038;font-weight:500}.closed{color:#d93025;font-weight:500}
-.thumb{width:84px;height:84px;border-radius:8px;flex:none;display:grid;place-items:center;color:#fff;font-size:30px;font-weight:700}
+.thumb{width:84px;height:84px;border-radius:8px;flex:none;display:grid;place-items:center;color:#fff;font-size:30px;font-weight:700;overflow:hidden;position:relative}
+.thumb img,.gal img,.mk .c img{width:100%;height:100%;object-fit:cover;display:block;animation:fade .3s ease both}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+.gal:empty{display:none}
+.gal{display:flex;gap:4px;overflow-x:auto;scroll-snap-type:x mandatory;margin:4px 0 0;padding:0 16px 4px;scrollbar-width:none;height:184px}
+.gal::-webkit-scrollbar{display:none}
+.gal>div{flex:none;height:180px;border-radius:8px;overflow:hidden;scroll-snap-align:start;background:var(--bg-2);position:relative}
+.gal>div:first-child{width:62%;min-width:220px}.gal>div{width:132px}
+.gal small{position:absolute;left:6px;bottom:4px;font-size:10px;color:#fff;text-shadow:0 0 3px #000;max-width:90%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sk{background:linear-gradient(90deg,#eceff1 25%,#f6f7f8 50%,#eceff1 75%);background-size:200% 100%;animation:sk 1.2s linear infinite}
+@keyframes sk{from{background-position:200% 0}to{background-position:-200% 0}}
+.menu{display:flex;gap:8px;flex-wrap:wrap;padding:4px 16px 8px}
+.menu span{background:#fef7e0;color:#7a4f01;border-radius:16px;padding:6px 12px;font-size:13px;font-weight:500}
+.sec{font-size:16px;font-weight:500;padding:14px 16px 4px}
 .abura{display:inline-flex;gap:2px;vertical-align:middle}
 .abura b{width:7px;height:7px;border-radius:50%;background:#dadce0}
 .abura b.on{background:#f29900}
@@ -110,18 +123,19 @@ button{font:inherit;color:inherit}
 .closeX svg{width:20px;height:20px}
 
 /* ---- 地図上のピン ---- */
-.mk{position:relative;display:flex;align-items:center;transform-origin:50% 50%;animation:pop .22s var(--ease) both;cursor:pointer}
+.mk{margin:-11px 0 0 -11px;display:flex;align-items:center;transform-origin:50% 50%;animation:pop .22s var(--ease) both;cursor:pointer}
 .mk .c{width:22px;height:22px;border-radius:50%;border:1.5px solid #fff;display:grid;place-items:center;color:#fff;font-size:11px;font-weight:700;box-shadow:0 1px 3px rgba(0,0,0,.35)}
 .mk .lb{position:absolute;left:26px;top:50%;transform:translateY(-50%);font-size:12px;font-weight:500;white-space:nowrap;color:#3c4043;text-shadow:0 0 2px #fff,0 0 2px #fff,0 0 3px #fff,0 0 4px #fff;pointer-events:none;max-width:140px;overflow:hidden;text-overflow:ellipsis;display:none}
 .showlb .mk .lb{display:block}
+.mk.ph{margin:-21px 0 0 -21px}.mk.ph .c{width:42px;height:42px;border:2px solid #fff;overflow:hidden;box-shadow:0 2px 5px rgba(0,0,0,.4)}.mk.ph .lb{left:46px}
 @keyframes pop{from{transform:scale(.3);opacity:0}to{transform:scale(1);opacity:1}}
 /* 選択中: 赤い大きなピンが落ちてきて弾む */
-.pin{position:relative;width:40px;height:52px;transform-origin:50% 100%;animation:drop .5s cubic-bezier(.3,1.5,.6,1) both}
+.pin{margin:-52px 0 0 -20px;width:40px;height:52px;transform-origin:50% 100%;animation:drop .5s cubic-bezier(.3,1.5,.6,1) both}
 .pin svg{width:40px;height:52px;filter:drop-shadow(0 2px 2px rgba(0,0,0,.3))}
 .pin span{position:absolute;left:0;right:0;top:9px;text-align:center;color:#fff;font-weight:700;font-size:14px}
 @keyframes drop{0%{transform:translateY(-40px) scale(.6);opacity:0}60%{transform:translateY(0) scale(1.05);opacity:1}100%{transform:translateY(0) scale(1)}}
 /* 現在地: 青い点＋ゆっくり脈打つ輪 */
-.me{width:18px;height:18px;border-radius:50%;background:#4285f4;border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.35);position:relative}
+.me{margin:-12px 0 0 -12px;width:24px;height:24px;border-radius:50%;background:#4285f4;border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.35);position:relative}
 .me::after{content:"";position:absolute;inset:-14px;border-radius:50%;background:rgba(66,133,244,.25);animation:pulse 2.2s ease-out infinite}
 @keyframes pulse{0%{transform:scale(.4);opacity:1}100%{transform:scale(1.4);opacity:0}}
 
@@ -176,7 +190,6 @@ button{font:inherit;color:inherit}
 <script>
 /* Google Maps JavaScript API キー（HTTP リファラーを https://kizystudio-collab.github.io/* に制限して使う） */
 const GMAPS_KEY = "AIzaSyBmYMkqv7MFhqCQQWVTLttQ-nhJNmlcAks";
-const MAP_ID = "DEMO_MAP_ID";
 
 const CAT = {
   "醤油":["#7a4a24","醤"], "塩":["#b39a55","塩"], "味噌":["#b9771f","味"], "豚骨":["#c9a982","豚"],
@@ -213,7 +226,7 @@ const ICON={
   x:'<svg viewBox="0 0 24 24"><path fill="currentColor" d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>'
 };
 
-let rows=[], here=null, anchor=null, map, AdvMarker, active=new Set(), sel=null, selMarker=null, meMarker=null, markers=new Map(), results=[];
+let Places=null, rows=[], here=null, anchor=null, map, AdvMarker, active=new Set(), sel=null, selMarker=null, meMarker=null, markers=new Map(), results=[];
 const $=id=>document.getElementById(id);
 const esc=s=>String(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const isDesk=()=>matchMedia('(min-width:900px)').matches;
@@ -235,6 +248,33 @@ function openNow(h){
     for(const t of times.split(',')){const q=t.trim().match(/^(\d{1,2}):(\d{2})-(\d{1,2}):(\d{2})/);if(!q)continue;known=true;let s=+q[1]*60+ +q[2],e=+q[3]*60+ +q[4];if(e<=s)e+=1440;if((m>=s&&m<e)||(m+1440>=s&&m+1440<e))open=true}}
   return known?open:null;
 }
+/* ========== 店舗写真（Places API・節約型: 端末に保存／1日の取得上限／見えている分だけ） ========== */
+const PHOTO_DAY_MAX=150, PHOTO_SESSION_MAX=60; let phSession=0; const inflight=new Map();
+const PH={get(id){try{return JSON.parse(localStorage.getItem('ph:'+id)||'null')}catch(e){return null}},set(id,v){try{localStorage.setItem('ph:'+id,JSON.stringify(v))}catch(e){}}};
+function budgetOK(){try{const k='phq:'+new Date().toISOString().slice(0,10);return phSession<PHOTO_SESSION_MAX&&(+localStorage.getItem(k)||0)<PHOTO_DAY_MAX}catch(e){return phSession<PHOTO_SESSION_MAX}}
+function budgetInc(){phSession++;try{const k='phq:'+new Date().toISOString().slice(0,10);localStorage.setItem(k,(+localStorage.getItem(k)||0)+1)}catch(e){}}
+function photoCached(r){const c=PH.get(r[19]);return c&&Date.now()-c.t<20*864e5?c:null}
+function photoInfo(r){
+  const id=r[19], c=photoCached(r); if(c) return Promise.resolve(c);
+  if(inflight.has(id)) return inflight.get(id);
+  if(!Places||!budgetOK()) return Promise.resolve(null);
+  const p=(async()=>{try{
+    budgetInc();
+    const {places}=await Places.Place.searchByText({textQuery:(r[0]+' '+(r[1]||'')+' '+r[2]+(r[3]||'')).trim(),fields:['photos','googleMapsURI','location'],locationBias:{lat:r[4],lng:r[5]},maxResultCount:1,language:'ja',region:'jp'});
+    const pl=places&&places[0], v={t:Date.now(),u:[],a:[]};
+    if(pl&&pl.location&&km(r[4],r[5],pl.location.lat(),pl.location.lng())<0.6){
+      v.g=pl.googleMapsURI||''; const ph=(pl.photos||[]).slice(0,8);
+      v.u=ph.map(x=>x.getURI({maxWidth:800,maxHeight:800})); v.a=ph.map(x=>(x.authorAttributions||[]).map(y=>y.displayName).join(', '));
+    }
+    PH.set(id,v); return v;
+  }catch(e){return null}finally{inflight.delete(id)}})();
+  inflight.set(id,p); return p;
+}
+const imgTag=(u,alt='')=>`<img src="${esc(u)}" alt="${esc(alt)}" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">`;
+function applyMarkerPhoto(m,v){if(!v||!v.u||!v.u[0]||!m.content.isConnected&&!m.content.parentNode)return;const c=m.content.querySelector('.c');if(!c||c.querySelector('img'))return;m.content.classList.add('ph');c.innerHTML=imgTag(v.u[0])}
+function applyThumb(el,v){if(!el||!v||!v.u||!v.u[0]||el.querySelector('img'))return;el.textContent='';el.insertAdjacentHTML('beforeend',imgTag(v.u[0]))}
+const thumbIO=('IntersectionObserver' in window)?new IntersectionObserver(es=>{for(const e of es){if(!e.isIntersecting)continue;thumbIO.unobserve(e.target);const r=results[+e.target.closest('.item').dataset.i]?.[1];if(!r)continue;photoInfo(r).then(v=>applyThumb(e.target,v))}},{rootMargin:'100px'}):null;
+
 function terms(){const t=$('q').value.trim().split(/[\s　、,]+/).filter(Boolean);active.forEach(a=>t.push(a));return t}
 function match(r,ts){const hay=r[6]+' '+r[7]+' '+r[9]+' '+r[10]+' '+r[11]+' '+r[16]+' '+r[0]+' '+r[1];
   for(const t of ts){if(RICH.test(t)){if(r[8]<4)return false;continue}if(LIGHT.test(t)){if(!(r[8]>0&&r[8]<=2))return false;continue}
@@ -290,13 +330,32 @@ function placeFabs(y,anim){const f=$('fabs');f.style.transition=anim?'':'none';f
 function loadGoogle(){
   if(!GMAPS_KEY){ document.body.insertAdjacentHTML('beforeend','<div class="cover">Google Maps の API キーが未設定です。<br>キーを設定すると地図が表示されます。</div>'); return Promise.reject('nokey') }
   ((g)=>{var h,a,k,p="The Google Maps JavaScript API",c="google",l="importLibrary",q="__ib__",m=document,b=window;b=b[c]||(b[c]={});var d=b.maps||(b.maps={}),r=new Set,e=new URLSearchParams,u=()=>h||(h=new Promise(async(f,n)=>{await (a=m.createElement("script"));e.set("libraries",[...r]+"");for(k in g)e.set(k.replace(/[A-Z]/g,t=>"_"+t[0].toLowerCase()),g[k]);e.set("callback",c+".maps."+q);a.src=`https://maps.${c}apis.com/maps/api/js?`+e;d[q]=f;a.onerror=()=>h=n(Error(p+" could not load."));a.nonce=m.querySelector("script[nonce]")?.nonce||"";m.head.append(a)}));d[l]?console.warn(p+" only loads once. Ignoring:",g):d[l]=(f,...n)=>r.add(f)&&u().then(()=>d[l](f,...n))})({key:GMAPS_KEY,v:"weekly",language:"ja",region:"JP"});
-  return Promise.all([google.maps.importLibrary("maps"),google.maps.importLibrary("marker")]);
+  return Promise.all([google.maps.importLibrary("maps"),google.maps.importLibrary("places").then(l=>{Places=l}).catch(()=>{})]);
+}
+/* ラーメン店以外（飲食店・商業施設・観光地などの POI）は一切出さない。駅・路線・公園の緑だけ残す */
+const MAP_STYLES=[
+  {featureType:'poi',stylers:[{visibility:'off'}]},
+  {featureType:'poi.park',elementType:'geometry',stylers:[{visibility:'on'}]},
+  {featureType:'transit.station.bus',stylers:[{visibility:'off'}]}
+];
+/* HTML のピン（Google の AdvancedMarker と同じ使い方: new AdvMarker({map,position,content,zIndex}), .map=null で消す） */
+function defineMarker(){
+  AdvMarker=class extends google.maps.OverlayView{
+    constructor({map,position,content,zIndex=0,title=''}){super();this.pos=new google.maps.LatLng(position);this.content=content;this.z=zIndex;
+      content.style.position='absolute';content.style.zIndex=zIndex;if(title)content.title=title;this._h=[];
+      google.maps.OverlayView.preventMapHitsAndGesturesFrom(content);this.setMap(map)}
+    onAdd(){this.getPanes().overlayMouseTarget.appendChild(this.content)}
+    draw(){const p=this.getProjection().fromLatLngToDivPixel(this.pos);if(p){this.content.style.left=p.x+'px';this.content.style.top=p.y+'px'}}
+    onRemove(){this.content.remove()}
+    set map(m){this.setMap(m)} get map(){return this.getMap()}
+    addListener(ev,fn){this.content.addEventListener(ev,e=>{e.stopPropagation();fn(e)})}
+  };
 }
 async function initMap(){
-  const [{Map},{AdvancedMarkerElement}] = await loadGoogle();
-  AdvMarker=AdvancedMarkerElement;
+  const [{Map}] = await loadGoogle();
+  defineMarker();
   map=new Map($('map'),{
-    center:{lat:34.7025,lng:135.4959}, zoom:15, mapId:MAP_ID,
+    center:{lat:34.7025,lng:135.4959}, zoom:15, styles:MAP_STYLES,
     disableDefaultUI:true, clickableIcons:false, gestureHandling:'greedy',
     zoomControl:isDesk(), zoomControlOptions:{position:google.maps.ControlPosition.RIGHT_BOTTOM},
     keyboardShortcuts:true, isFractionalZoomEnabled:true
@@ -333,6 +392,9 @@ function drawMarkers(){
     markers.set(r[19],m);
   }
   for(const [id,m] of markers){ if(!keep.has(id)){ m.map=null; markers.delete(id) } }
+  // 寄ったときは近くの店をお店の写真アイコンに（取得済みは常に、未取得は中心に近い8件まで）
+  if(map.getZoom()>=16){ want.slice(0,120).forEach(([,r],i)=>{const m=markers.get(r[19]); if(!m) return; const c=photoCached(r);
+    if(c) applyMarkerPhoto(m,c); else if(i<8 && map.getZoom()>=17) photoInfo(r).then(v=>applyMarkerPhoto(m,v)) }) }
   if(sel && markers.has(sel[19])) markers.get(sel[19]).map=null;  // 選択中は赤ピンに置き換え
 }
 
@@ -361,8 +423,10 @@ function renderList(){
   body.innerHTML = L.length ? L.map(([dk,r],i)=>itemHTML(r,dk,i)).join('') :
     '<div class="empty">この範囲には見つかりませんでした。<br>範囲を広げるか、条件を減らしてみてください。</div>';
   body.scrollTop=0;
+  body.querySelectorAll('.thumb').forEach((el,i)=>{const r=results[i][1],c=photoCached(r); if(c) applyThumb(el,c); else if(i<12&&thumbIO) thumbIO.observe(el)});
 }
 body.addEventListener('click',e=>{const it=e.target.closest('.item'); if(!it) return; const [,r]=results[+it.dataset.i]; openDetail(r,false)});
+body.addEventListener('pointerdown',e=>{const it=e.target.closest('.item'); if(it) photoInfo(results[+it.dataset.i][1])}); // 指が触れた時点で写真を先読み
 body.addEventListener('pointerover',e=>{const it=e.target.closest('.item'); if(!it||!isDesk()) return; const r=results[+it.dataset.i][1]; const m=markers.get(r[19]); if(m) {m.content.style.transform='scale(1.35)'; it.onpointerleave=()=>m.content.style.transform=''}});
 function itemHTML(r,dk,i){
   const [col,ch]=CAT[r[6]]||CAT[""], op=openNow(r[13]);
@@ -377,6 +441,11 @@ function itemHTML(r,dk,i){
 /* ========== 場所の詳細（ピン or 一覧タップ） ========== */
 function selPinEl(r){const col='#ea4335',[,ch]=CAT[r[6]]||CAT[""];const d=document.createElement('div');d.className='pin';
   d.innerHTML=`<svg viewBox="0 0 40 52"><path fill="${col}" stroke="#b31412" stroke-width="1" d="M20 1C9.5 1 1 9.4 1 19.8 1 33.6 20 51 20 51s19-17.4 19-31.2C39 9.4 30.5 1 20 1z"/></svg><span>${ch}</span>`;return d}
+function galHTML(v){
+  if(!v) return '<div class="sk"></div><div class="sk"></div><div class="sk"></div>';   // 読み込み中（Google と同じくグレーのプレースホルダ）
+  if(!v.u||!v.u.length) return '';
+  return v.u.map((u,i)=>`<div>${imgTag(u)}${v.a[i]?'<small>📷 '+esc(v.a[i])+'</small>':''}</div>`).join('');
+}
 function openDetail(r,fromMap){
   sel=r; sheet.classList.add('det');
   if(selMarker) selMarker.map=null;
@@ -394,7 +463,7 @@ function openDetail(r,fromMap){
   const gm=`https://www.google.com/maps/search/?api=1&query=${qname}`;
   const rowsHTML=[
     [ICON.bowl,`${esc(r[6]||'系統不明')}${r[7]?'（'+esc(r[7].replace(/;/g,'・'))+'）':''}${r[8]?'<br>こってり度 '+abura(r[8])+' '+r[8]+'/5':''}${r[9]?'<br><span style="color:var(--text-2)">'+esc(r[9].replace(/;/g,'・'))+'</span>':''}`],
-    r[16]&&[ICON.info,'看板：'+esc(r[16])+(r[11]?'<br>麺：'+esc(r[11]):'')],
+    r[11]&&[ICON.info,'麺：'+esc(r[11])],
     [ICON.pin,`<a href="${gm}" target="_blank" rel="noopener">${esc(r[17]||r[2]+r[3])}</a>`],
     r[13]&&[ICON.clock,(op===true?'<span class="open">営業中</span> ・ ':op===false?'<span class="closed">営業時間外</span> ・ ':'')+esc(r[13])],
     r[14]&&[ICON.web,`<a href="${esc(r[14])}" target="_blank" rel="noopener">${esc(r[14].replace(/^https?:\/\/(www\.)?/,'').split('/')[0])}</a>`],
@@ -405,15 +474,18 @@ function openDetail(r,fromMap){
     <h1>${esc(r[0])}${r[1]?' <span style="font-size:16px;color:var(--text-2)">'+esc(r[1])+'</span>':''}</h1>
     <div class="line">${r[8]?abura(r[8])+'<span class="dot"></span>':''}ラーメン店<span class="dot"></span>${esc(r[6]||'系統不明')}${dk!=null?'<span class="dot"></span>'+fmtD(dk):''}</div>
     <div class="line" style="margin-top:2px"><span class="tag ${/^(A|B)/.test(r[12])?'ok':''}">${confLabel(r[12])}</span>${r[10]?'<span class="dot"></span>'+esc(r[10]):''}</div>
+    <div class="gal" id="gal">${galHTML(photoCached(r))}</div>
     <div class="acts">
       <a class="act pri" target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&destination=${dest}&travelmode=walking">${ICON.dir}経路</a>
       <a class="act" target="_blank" rel="noopener" href="${gm}">${ICON.open}Google マップで開く</a>
       ${r[18]?`<a class="act" href="tel:${esc(r[18])}">${ICON.call}電話</a>`:''}
       <button class="act" id="shareB">${ICON.share}共有</button>
     </div>
+    ${r[16]?`<div class="sec">メニュー</div><div class="menu">${r[16].split(/[;、,／/]/).filter(Boolean).slice(0,6).map(x=>'<span>'+esc(x.trim())+'</span>').join('')}</div>`:''}
     <div class="rows">${rowsHTML}</div>
     <p class="note">系統・営業状況は公開情報からの推定を含みます。口コミ・写真・最新の営業情報は「Google マップで開く」から確認できます。</p></div>`;
   body.scrollTop=0;
+  if(!photoCached(r)) photoInfo(r).then(v=>{ if(sel===r && $('gal')) $('gal').outerHTML=`<div class="gal" id="gal">${galHTML(v||{u:[]})}</div>` });
   $('closeX').onclick=closeDetail;
   $('shareB').onclick=()=>{const d={title:r[0],text:r[0]+'（'+(r[6]||'ラーメン')+'）',url:gm}; navigator.share?navigator.share(d).catch(()=>{}):(navigator.clipboard.writeText(gm),toast('リンクをコピーしました'))};
   setSheet(1);
