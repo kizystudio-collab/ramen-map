@@ -347,7 +347,6 @@ function defineMarker(){
     onAdd(){this.getPanes().overlayMouseTarget.appendChild(this.content)}
     draw(){const p=this.getProjection().fromLatLngToDivPixel(this.pos);if(p){this.content.style.left=p.x+'px';this.content.style.top=p.y+'px'}}
     onRemove(){this.content.remove()}
-    set map(m){this.setMap(m)} get map(){return this.getMap()}
     addListener(ev,fn){this.content.addEventListener(ev,e=>{e.stopPropagation();fn(e)})}
   };
 }
@@ -391,11 +390,11 @@ function drawMarkers(){
     m.addListener('click',()=>openDetail(r,true));
     markers.set(r[19],m);
   }
-  for(const [id,m] of markers){ if(!keep.has(id)){ m.map=null; markers.delete(id) } }
+  for(const [id,m] of markers){ if(!keep.has(id)){ m.setMap(null); markers.delete(id) } }
   // 寄ったときは近くの店をお店の写真アイコンに（取得済みは常に、未取得は中心に近い8件まで）
   if(map.getZoom()>=16){ want.slice(0,120).forEach(([,r],i)=>{const m=markers.get(r[19]); if(!m) return; const c=photoCached(r);
     if(c) applyMarkerPhoto(m,c); else if(i<8 && map.getZoom()>=17) photoInfo(r).then(v=>applyMarkerPhoto(m,v)) }) }
-  if(sel && markers.has(sel[19])) markers.get(sel[19]).map=null;  // 選択中は赤ピンに置き換え
+  if(sel && markers.has(sel[19])) markers.get(sel[19]).setMap(null);  // 選択中は赤ピンに置き換え
 }
 
 /* ========== 一覧 ========== */
@@ -448,10 +447,10 @@ function galHTML(v){
 }
 function openDetail(r,fromMap){
   sel=r; sheet.classList.add('det');
-  if(selMarker) selMarker.map=null;
+  if(selMarker) selMarker.setMap(null);
   if(map){
     selMarker=new AdvMarker({map,position:{lat:r[4],lng:r[5]},content:selPinEl(r),zIndex:999,title:r[0]});
-    if(markers.has(r[19])) markers.get(r[19]).map=null;
+    if(markers.has(r[19])) markers.get(r[19]).setMap(null);
     // ピンがシートに隠れないよう、見えている地図領域の中央へ滑らかに移動
     const target={lat:r[4],lng:r[5]};
     if(!fromMap && map.getZoom()<16) map.setZoom(16);
@@ -491,8 +490,8 @@ function openDetail(r,fromMap){
   setSheet(1);
 }
 function closeDetail(){
-  if(selMarker){selMarker.map=null;selMarker=null}
-  sheet.classList.remove('det'); const r=sel; sel=null; if(r&&markers.has(r[19])) markers.get(r[19]).map=map;
+  if(selMarker){selMarker.setMap(null);selMarker=null}
+  sheet.classList.remove('det'); const r=sel; sel=null; if(r&&markers.has(r[19])) markers.get(r[19]).setMap(map);
   $('top').classList.remove('hide'); renderList(); setSheet(1);
 }
 
@@ -502,7 +501,7 @@ function locate(){
   navigator.geolocation.getCurrentPosition(p=>{
     here={lat:p.coords.latitude,lng:p.coords.longitude}; anchor=here; $('locate').classList.add('on');
     if(map){
-      if(meMarker) meMarker.map=null;
+      if(meMarker) meMarker.setMap(null);
       const d=document.createElement('div'); d.className='me';
       meMarker=new AdvMarker({map,position:here,content:d,zIndex:1000,title:'現在地'});
       map.panTo(here); if(map.getZoom()<15) map.setZoom(15);
