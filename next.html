@@ -93,6 +93,7 @@ button{font:inherit;color:inherit}
 @keyframes sk{from{background-position:200% 0}to{background-position:-200% 0}}
 .menu{display:flex;gap:8px;flex-wrap:wrap;padding:4px 16px 8px}
 .menu span{background:#fef7e0;color:#7a4f01;border-radius:16px;padding:6px 12px;font-size:13px;font-weight:500}
+.emb{margin:4px 16px 8px;border-radius:12px;overflow:hidden;height:260px;background:var(--bg-2)}.emb iframe{width:100%;height:100%;border:0}
 .sec{font-size:16px;font-weight:500;padding:14px 16px 4px}
 .abura{display:inline-flex;gap:2px;vertical-align:middle}
 .abura b{width:7px;height:7px;border-radius:50%;background:#dadce0}
@@ -261,10 +262,10 @@ function photoInfo(r){
   if(!Places||!budgetOK()) return Promise.resolve(null);
   const p=(async()=>{try{
     budgetInc();
-    const {places}=await Places.Place.searchByText({textQuery:(r[0]+' '+(r[1]||'')+' '+r[2]+(r[3]||'')).trim(),fields:['photos','googleMapsURI','location','displayName'],locationBias:{lat:r[4],lng:r[5]},maxResultCount:1,language:'ja',region:'jp'});
+    const {places}=await Places.Place.searchByText({textQuery:(r[0]+' '+(r[1]||'')+' '+r[2]+(r[3]||'')).trim(),fields:['id','photos','googleMapsURI','location','displayName'],locationBias:{lat:r[4],lng:r[5]},maxResultCount:1,language:'ja',region:'jp'});
     const pl=places&&places[0], v={t:Date.now(),u:[],a:[]};
     if(pl&&pl.location&&km(r[4],r[5],pl.location.lat(),pl.location.lng())<0.6){
-      v.g=pl.googleMapsURI||''; v.n=pl.displayName||''; const ph=(pl.photos||[]).slice(0,8);
+      v.g=pl.googleMapsURI||''; v.n=pl.displayName||''; v.pid=pl.id||''; const ph=(pl.photos||[]).slice(0,8);
       v.u=ph.map(x=>x.getURI({maxWidth:800,maxHeight:800})); v.a=ph.map(x=>(x.authorAttributions||[]).map(y=>y.displayName).join(', '));
     }
     PH.set(id,v); return v;
@@ -404,7 +405,7 @@ function drawMarkers(){
   for(const [id,m] of markers){ if(!keep.has(id)){ m.setMap(null); markers.delete(id) } }
   // 寄ったときは近くの店をお店の写真アイコンに（取得済みは常に、未取得は中心に近い8件まで）
   if(map.getZoom()>=16){ want.slice(0,120).forEach(([,r],i)=>{const m=markers.get(r[19]); if(!m) return; const c=photoCached(r);
-    if(c) applyMarkerPhoto(m,c); else if(i<8 && map.getZoom()>=17) photoInfo(r).then(v=>applyMarkerPhoto(m,v)) }) }
+    if(c) applyMarkerPhoto(m,c) }) }  // ピン写真は取得済みの店だけ（追加の API 呼び出しはしない）
   if(sel && markers.has(sel[19])) markers.get(sel[19]).setMap(null);  // 選択中は赤ピンに置き換え
 }
 
@@ -434,7 +435,7 @@ function renderList(){
   body.innerHTML = L.length ? L.map(([dk,r],i)=>itemHTML(r,dk,i)).join('') :
     '<div class="empty">この範囲には見つかりませんでした。<br>範囲を広げるか、条件を減らしてみてください。</div>';
   body.scrollTop=0;
-  body.querySelectorAll('.thumb').forEach((el,i)=>{const r=results[i][1],c=photoCached(r); if(c) applyThumb(el,c); else if(i<12&&thumbIO) thumbIO.observe(el)});
+  body.querySelectorAll('.thumb').forEach((el,i)=>{const r=results[i][1],c=photoCached(r); if(c) applyThumb(el,c); else if(i<6&&thumbIO) thumbIO.observe(el)});
 }
 body.addEventListener('click',e=>{const it=e.target.closest('.item'); if(!it) return; const [,r]=results[+it.dataset.i]; openDetail(r,false)});
 body.addEventListener('pointerdown',e=>{const it=e.target.closest('.item'); if(it) photoInfo(results[+it.dataset.i][1])}); // 指が触れた時点で写真を先読み
@@ -496,6 +497,8 @@ function openDetail(r,fromMap){
     ${r[16]?`<div class="sec">メニュー</div><div class="menu">${r[16].split(/[;、,／/]/).filter(Boolean).slice(0,6).map(x=>'<span>'+esc(x.trim())+'</span>').join('')}</div>`:''}
     ${r[22]?`<div class="sec">お店の雰囲気</div><div class="menu">${r[22].split(';').filter(Boolean).slice(0,6).map(x=>'<span style="background:#e8f0fe;color:#174ea6">'+esc(x)+'</span>').join('')}</div>`:''}
     <div class="rows">${rowsHTML}</div>
+    <div class="sec">Google マップの評価・口コミ</div>
+    <div class="emb"><iframe title="Google マップ" loading="lazy" referrerpolicy="no-referrer-when-downgrade" allowfullscreen src="https://www.google.com/maps/embed/v1/place?key=${GMAPS_KEY}&language=ja&q=${(photoCached(r)||{}).pid?'place_id:'+photoCached(r).pid:encodeURIComponent((nameOf(r)+' '+(r[1]||'')+' '+(r[17]||r[2]+r[3])).trim())}"></iframe></div>
     <p class="note">系統・営業状況は公開情報からの推定を含みます。口コミ・写真・最新の営業情報は「Google マップで開く」から確認できます。</p></div>`;
   body.scrollTop=0;
   if(!photoCached(r)) photoInfo(r).then(v=>{ if(sel===r && $('gal')) $('gal').outerHTML=`<div class="gal" id="gal">${galHTML(v||{u:[]})}</div>`; if(sel===r&&v&&v.n&&BADNAME.test(r[0].trim())){const h=body.querySelector('.pl h1'); if(h&&h.firstChild) h.firstChild.textContent=v.n} });
