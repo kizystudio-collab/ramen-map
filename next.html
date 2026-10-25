@@ -46,6 +46,9 @@ button{font:inherit;color:inherit}
 .chip i{width:8px;height:8px;border-radius:50%}
 .chip[aria-pressed="true"]{background:#d3e3fd;color:#041e49}
 .chip:active{background:var(--bg-2)}
+.chip.vibe{color:#174ea6}
+.chip.vibe[aria-pressed="true"]{background:#d3e3fd;color:#041e49}
+.csep{flex:none;width:1px;align-self:stretch;margin:4px 2px;background:var(--line,#dadce0)}
 
 /* ---- このエリアを検索 ---- */
 #reSearch{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 116px);z-index:19;transform:translate(-50%,-8px) scale(.9);opacity:0;pointer-events:none;border:0;background:var(--bg);color:var(--blue);font-weight:500;height:36px;border-radius:18px;padding:0 16px;box-shadow:var(--shadow);display:flex;align-items:center;gap:6px;cursor:pointer;transition:transform .25s var(--ease),opacity .2s}
@@ -164,7 +167,7 @@ button{font:inherit;color:inherit}
 <div class="top" id="top">
   <div class="search">
     <div class="logo" aria-hidden="true"></div>
-    <input id="q" type="search" placeholder="ラーメンを検索（例：濃厚 魚介）" autocomplete="off" enterkeyhint="search" aria-label="検索">
+    <input id="q" type="search" placeholder="ラーメンを検索（例：濃厚 魚介 深夜）" autocomplete="off" enterkeyhint="search" aria-label="検索">
     <button class="round" id="clearQ" aria-label="検索語を消す"><svg viewBox="0 0 24 24"><path fill="currentColor" d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button>
   </div>
   <div class="chips" id="moods" role="toolbar" aria-label="気分"></div>
@@ -213,6 +216,23 @@ const SYN = {
   "中華そば":["醤油","昔ながら","中華そば","煮干し"], "昔ながら":["昔ながら","醤油","町中華"], "町中華":["町中華"], "野菜":["野菜","タンメン"], "タンメン":["タンメン"],
   "牛骨":["牛骨"], "背脂":["背脂","二郎系"], "にんにく":["にんにく","二郎系"], "博多":["博多","豚骨"], "替え玉":["替え玉","豚骨"], "ちゃんぽん":["ちゃんぽん"], "太麺":["太","極太"], "細麺":["細"]
 };
+/* 雰囲気（v2の雰囲気タグ＋最寄り駅・営業時間から判定） */
+const tagSet=r=>new Set((r[22]||'').split(';').map(x=>x.trim()).filter(Boolean));
+const hasTag=(r,a)=>{const t=tagSet(r);return a.some(x=>t.has(x))};
+const walkMin=r=>{const m=(r[20]||'').match(/徒歩(\d+)分/);return m?+m[1]:99};
+const spans=r=>[...(r[13]||'').matchAll(/(\d{1,2}):(\d{2})-(\d{1,2}):(\d{2})/g)].map(q=>[+q[1]*60+ +q[2],+q[3]*60+ +q[4]]);
+const VIBES=[
+  ["駅近（徒歩5分）","駅近",r=>walkMin(r)<=5],
+  ["深夜もやってる","深夜",r=>/24\/7/.test(r[13]||'')||spans(r).some(([s,e])=>e<=s||e>=1380)||hasTag(r,["深夜営業","24時間営業"])],
+  ["朝ラー","朝ラー",r=>spans(r).some(([s])=>s>=240&&s<=540)||hasTag(r,["朝ラー","朝営業","早朝営業"])],
+  ["老舗・昔ながら","老舗",r=>hasTag(r,["老舗","昔ながら","昭和","昭和レトロ"])],
+  ["行列店","行列",r=>hasTag(r,["行列"])],
+  ["新店","新店",r=>hasTag(r,["新店"])],
+  ["家族で","家族",r=>hasTag(r,["家族向け","フードコート","ロードサイド"])],
+  ["ひとりで気軽に","ひとり",r=>hasTag(r,["カウンターのみ","券売機","女性一人でも","一人向け","一人でも","立ち食い"])],
+];
+const VIBE=Object.fromEntries(VIBES.map(([,k,f])=>[k,f]));
+Object.assign(VIBE,{"深夜営業":VIBE["深夜"],"夜中":VIBE["深夜"],"遅くまで":VIBE["深夜"],"朝":VIBE["朝ラー"],"昔ながら":VIBE["老舗"],"子連れ":VIBE["家族"],"一人":VIBE["ひとり"],"おひとり様":VIBE["ひとり"],"駅チカ":VIBE["駅近"]});
 const RICH=/^(こってり|濃厚|ガッツリ|がっつり|ギトギト|ドロドロ|重め)$/, LIGHT=/^(あっさり|さっぱり|優しい|やさしい|軽め|すっきり)$/;
 const ICON={
   dir:'<svg viewBox="0 0 24 24"><path fill="currentColor" d="M21.71 11.29 12.71 2.29a1 1 0 0 0-1.41 0l-9 9a1 1 0 0 0 0 1.41l9 9a1 1 0 0 0 1.41 0l9-9a1 1 0 0 0 0-1.41M14 14.5V12h-4v3H8v-4a1 1 0 0 1 1-1h5V7.5l3.5 3.5z"/></svg>',
@@ -289,7 +309,7 @@ const catsText=r=>catsOf(r).join('・')||'系統不明';
 
 function terms(){const t=$('q').value.trim().split(/[\s　、,]+/).filter(Boolean);active.forEach(a=>t.push(a));return t}
 function match(r,ts){const hay=r[6]+' '+r[7]+' '+r[9]+' '+r[10]+' '+r[11]+' '+r[16]+' '+r[0]+' '+r[1]+' '+(r[21]||'')+' '+(r[22]||'');
-  for(const t of ts){if(RICH.test(t)){if(r[8]<4)return false;continue}if(LIGHT.test(t)){if(!(r[8]>0&&r[8]<=2))return false;continue}
+  for(const t of ts){if(VIBE[t]){if(!VIBE[t](r))return false;continue}if(RICH.test(t)){if(r[8]<4)return false;continue}if(LIGHT.test(t)){if(!(r[8]>0&&r[8]<=2))return false;continue}
     const syn=SYN[t]||[t];if(!syn.some(s=>hay.includes(s)))return false}return true}
 
 /* ========== ボトムシート（Google マップのように指に追従・慣性でスナップ） ========== */
@@ -428,7 +448,7 @@ function computeList(){
 function renderList(){
   if(!rows.length) return;
   const ts=computeList();
-  $('title').textContent = ts.length ? ts.join(' ') : (here&&anchor===here?'現在地周辺のラーメン':'このエリアのラーメン');
+  $('title').textContent = ts.length ? ts.map(t=>(VIBES.find(v=>v[1]===t)||MOODS.find(m=>m[1]===t)||[t])[0]).join('・') : (here&&anchor===here?'現在地周辺のラーメン':'このエリアのラーメン');
   $('count').textContent = results.length.toLocaleString()+' 件';
   if(sel) return;
   const L=results.slice(0,200);
@@ -445,7 +465,7 @@ function itemHTML(r,dk,i){
   return `<div class="item" data-i="${i}" role="button" tabindex="0">
     <div class="tx"><div class="nm">${esc(nameOf(r))}${r[1]?' '+esc(r[1]):''}</div>
       <div class="line">${r[8]?abura(r[8])+'<span class="dot"></span>':''}${esc(catsText(r))}<span class="dot"></span>${fmtD(dk)}</div>
-      <div class="line">${esc(r[20]?r[20].replace(/ 徒歩/,'・徒歩'):(r[3]||r[2]))}</div>
+      <div class="line">${esc(r[20]?r[20].replace(/ 徒歩/,'・徒歩'):(r[3]||r[2]))}${(()=>{const v=VIBES.find(([,k,f])=>k!=='駅近'&&f(r));return v?'<span class="dot"></span><span style="color:#174ea6">'+esc(v[0])+'</span>':''})()}</div>
       <div class="line">${op===true?'<span class="open">営業中</span>':op===false?'<span class="closed">営業時間外</span>':''}${op!==null?'<span class="dot"></span>':''}<span class="tag ${/^(A|B)/.test(r[12])?'ok':''}">${confLabel(r[12])}</span>${r[16]?'<span class="dot"></span>'+esc(r[16].split(/[;、]/)[0]):''}</div></div>
     <div class="thumb" style="background:${col}" aria-hidden="true">${ch}</div></div>`;
 }
@@ -530,7 +550,8 @@ function locate(){
 /* ========== UI 配線 ========== */
 function buildMoods(){
   const alias={"二郎":"二郎系","つけ麺":"魚介豚骨","辛い":"辛系","汁なし":"油そば・まぜそば","貝":"貝・海鮮","中華そば":"醤油","野菜":"タンメン・野菜"};
-  $('moods').innerHTML=MOODS.map(([l,t])=>{const c=(CAT[t]||CAT[alias[t]]||[null])[0];return `<button class="chip" aria-pressed="false" data-t="${t}">${c?`<i style="background:${c}"></i>`:''}${l}</button>`}).join('');
+  $('moods').innerHTML=VIBES.map(([l,t])=>`<button class="chip vibe" aria-pressed="false" data-t="${t}">${l}</button>`).join('')+'<span class="csep" aria-hidden="true"></span>'+
+    MOODS.map(([l,t])=>{const c=(CAT[t]||CAT[alias[t]]||[null])[0];return `<button class="chip" aria-pressed="false" data-t="${t}">${c?`<i style="background:${c}"></i>`:''}${l}</button>`}).join('');
   $('moods').addEventListener('click',e=>{const b=e.target.closest('.chip'); if(!b) return;
     const t=b.dataset.t,on=b.getAttribute('aria-pressed')!=='true'; b.setAttribute('aria-pressed',on); on?active.add(t):active.delete(t);
     if(sel) closeDetail(); else renderList(); drawMarkers(); if(snapIdx===0) setSheet(1)});
