@@ -185,7 +185,6 @@ button{font:inherit;color:inherit}
   </div>
   <div class="filters" id="filters">
     <button class="fchip" id="fOpen" aria-pressed="false">営業中</button>
-    <button class="fchip" id="fSure" aria-pressed="false">系統が確かな店</button>
     <label class="fchip">範囲 <select id="radius"><option value="1">1km</option><option value="3" selected>3km</option><option value="10">10km</option><option value="50">50km</option></select></label>
   </div>
   <div class="body" id="body"><div class="empty">データを読み込み中…</div></div>
@@ -275,6 +274,10 @@ const PHOTO_DAY_MAX=150, PHOTO_SESSION_MAX=60; let phSession=0; const inflight=n
 const PH={get(id){try{return JSON.parse(localStorage.getItem('ph:'+id)||'null')}catch(e){return null}},set(id,v){try{localStorage.setItem('ph:'+id,JSON.stringify(v))}catch(e){}}};
 function budgetOK(){try{const k='phq:'+new Date().toISOString().slice(0,10);return phSession<PHOTO_SESSION_MAX&&(+localStorage.getItem(k)||0)<PHOTO_DAY_MAX}catch(e){return phSession<PHOTO_SESSION_MAX}}
 function budgetInc(){phSession++;try{const k='phq:'+new Date().toISOString().slice(0,10);localStorage.setItem(k,(+localStorage.getItem(k)||0)+1)}catch(e){}}
+/* Google の業種で、ラーメンを出さない店だと分かったら隠す */
+const NONRAMEN=/^(sushi|yakiniku|soba_noodle|udon_noodle|cafe|coffee|bar|pub|izakaya|bakery|cake|dessert|ice_cream|pizza|italian|french|steak|barbecue|seafood|tonkatsu|tempura|curry|korean_barbecue|hamburger|sandwich|convenience|supermarket|grocery|liquor|lodging|hotel|spa|laundry|gas_station|store|shopping)/;
+function notRamen(pt,ty){ty=ty||[];if(ty.includes('ramen_restaurant')||ty.includes('chinese_restaurant')||ty.includes('chinese_noodle_restaurant'))return false;return !!(pt&&NONRAMEN.test(pt))}
+const hiddenByGoogle=r=>{const c=photoCached(r);return !!(c&&c.bad)};
 function photoCached(r){const c=PH.get(r[19]);return c&&Date.now()-c.t<20*864e5?c:null}
 function photoInfo(r){
   const id=r[19], c=photoCached(r); if(c) return Promise.resolve(c);
@@ -282,10 +285,10 @@ function photoInfo(r){
   if(!Places||!budgetOK()) return Promise.resolve(null);
   const p=(async()=>{try{
     budgetInc();
-    const {places}=await Places.Place.searchByText({textQuery:(r[0]+' '+(r[1]||'')+' '+r[2]+(r[3]||'')).trim(),fields:['id','photos','googleMapsURI','location','displayName'],locationBias:{lat:r[4],lng:r[5]},maxResultCount:1,language:'ja',region:'jp'});
+    const {places}=await Places.Place.searchByText({textQuery:(r[0]+' '+(r[1]||'')+' '+r[2]+(r[3]||'')).trim(),fields:['id','photos','googleMapsURI','location','displayName','primaryType','types'],locationBias:{lat:r[4],lng:r[5]},maxResultCount:1,language:'ja',region:'jp'});
     const pl=places&&places[0], v={t:Date.now(),u:[],a:[]};
     if(pl&&pl.location&&km(r[4],r[5],pl.location.lat(),pl.location.lng())<0.6){
-      v.g=pl.googleMapsURI||''; v.n=pl.displayName||''; v.pid=pl.id||''; const ph=(pl.photos||[]).slice(0,8);
+      v.g=pl.googleMapsURI||''; v.n=pl.displayName||''; v.pid=pl.id||''; v.pt=pl.primaryType||''; v.bad=notRamen(pl.primaryType,pl.types); const ph=(pl.photos||[]).slice(0,8);
       v.u=ph.map(x=>x.getURI({maxWidth:800,maxHeight:800})); v.a=ph.map(x=>(x.authorAttributions||[]).map(y=>y.displayName).join(', '));
     }
     PH.set(id,v); return v;
@@ -303,7 +306,8 @@ function jaHours(h){if(!h)return'';if(/24\/7/.test(h))return'24時間営業';
   return h.split(';').map(p=>p.trim()).filter(Boolean).map(p=>p.replace(/\b(Mo|Tu|We|Th|Fr|Sa|Su|PH)\b/g,m=>DJ[m]).replace(/([月火水木金土日祝])-([月火水木金土日祝])/g,'$1〜$2').replace(/\s*(off|closed)\b/gi,' 定休').replace(/,\s*/g,'・')).join(' / ')}
 /* 店名: 英語・一般名だけの店は Google の日本語名（写真取得時に一緒に取得）で表示 */
 const BADNAME=/^[A-Za-z0-9 .,'&\-!()\/:]+$|^(ラーメン|らーめん|麺屋|ラーメン店|ラーメン屋|中華そば)$/;
-function nameOf(r){const c=BADNAME.test((r[0]||'').trim())?photoCached(r):null;return (c&&c.n)?c.n:r[0]}
+function nameOf(r){const c=photoCached(r);return (c&&c.n)?c.n:r[0]}
+const fullName=r=>{const c=photoCached(r);return (c&&c.n)?c.n:(r[0]+(r[1]?' '+r[1]:''))};
 const catsOf=r=>((r[21]||r[6]||'').split(';').filter(Boolean));
 const catsText=r=>catsOf(r).join('・')||'系統不明';
 
@@ -402,11 +406,11 @@ async function initMap(){
 function drawMarkers(){
   if(!map||!rows.length) return;
   const b=map.getBounds(); if(!b) return;
-  const c=map.getCenter(), ts=terms(), sure=$('fSure').getAttribute('aria-pressed')==='true', onlyOpen=$('fOpen').getAttribute('aria-pressed')==='true';
+  const c=map.getCenter(), ts=terms(), onlyOpen=$('fOpen').getAttribute('aria-pressed')==='true';
   const want=[];
   for(const r of rows){
     if(!b.contains({lat:r[4],lng:r[5]})) continue;
-    if(sure && !/^(A|B)/.test(r[12])) continue;
+    if(hiddenByGoogle(r)) continue;
     if(ts.length && !match(r,ts)) continue;
     if(onlyOpen && openNow(r[13])!==true) continue;
     want.push([Math.abs(r[4]-c.lat())+Math.abs(r[5]-c.lng()),r]);
@@ -431,14 +435,14 @@ function drawMarkers(){
 
 /* ========== 一覧 ========== */
 function computeList(){
-  const ts=terms(), rad=+$('radius').value, sure=$('fSure').getAttribute('aria-pressed')==='true', onlyOpen=$('fOpen').getAttribute('aria-pressed')==='true';
+  const ts=terms(), rad=+$('radius').value, onlyOpen=$('fOpen').getAttribute('aria-pressed')==='true';
   if(!anchor&&!here&&map) anchor={lat:map.getCenter().lat(),lng:map.getCenter().lng()};  // 現在地なしでも「このエリアを検索」が出るよう基準点を持つ
   const o=anchor||here||(map?{lat:map.getCenter().lat(),lng:map.getCenter().lng()}:{lat:34.7025,lng:135.4959});
   const out=[];
   for(const r of rows){
     if(Math.abs(r[4]-o.lat)>rad/90||Math.abs(r[5]-o.lng)>rad/70) continue;
     const dk=km(o.lat,o.lng,r[4],r[5]); if(dk>rad) continue;
-    if(sure && !/^(A|B)/.test(r[12])) continue;
+    if(hiddenByGoogle(r)) continue;
     if(ts.length && !match(r,ts)) continue;
     if(onlyOpen && openNow(r[13])!==true) continue;
     out.push([dk,r]);
@@ -463,10 +467,10 @@ body.addEventListener('pointerover',e=>{const it=e.target.closest('.item'); if(!
 function itemHTML(r,dk,i){
   const [col,ch]=CAT[r[6]]||CAT[""], op=openNow(r[13]);
   return `<div class="item" data-i="${i}" role="button" tabindex="0">
-    <div class="tx"><div class="nm">${esc(nameOf(r))}${r[1]?' '+esc(r[1]):''}</div>
+    <div class="tx"><div class="nm">${esc(fullName(r))}</div>
       <div class="line">${r[8]?abura(r[8])+'<span class="dot"></span>':''}${esc(catsText(r))}<span class="dot"></span>${fmtD(dk)}</div>
       <div class="line">${esc(r[20]?r[20].replace(/ 徒歩/,'・徒歩'):(r[3]||r[2]))}${(()=>{const v=VIBES.find(([,k,f])=>k!=='駅近'&&f(r));return v?'<span class="dot"></span><span style="color:#174ea6">'+esc(v[0])+'</span>':''})()}</div>
-      <div class="line">${op===true?'<span class="open">営業中</span>':op===false?'<span class="closed">営業時間外</span>':''}${op!==null?'<span class="dot"></span>':''}<span class="tag ${/^(A|B)/.test(r[12])?'ok':''}">${confLabel(r[12])}</span>${r[16]?'<span class="dot"></span>'+esc(r[16].split(/[;、]/)[0]):''}</div></div>
+      <div class="line">${op===true?'<span class="open">営業中</span>':op===false?'<span class="closed">営業時間外</span>':''}${op!==null&&r[16]?'<span class="dot"></span>':''}${r[16]?esc(r[16].split(/[;、]/)[0]):''}</div></div>
     <div class="thumb" style="background:${col}" aria-hidden="true">${ch}</div></div>`;
 }
 
@@ -497,16 +501,15 @@ function openDetail(r,fromMap){
     [ICON.bowl,`${esc(catsText(r))}${r[7]?'（'+esc(r[7].replace(/;/g,'・'))+'）':''}${r[8]?'<br>こってり度 '+abura(r[8])+' '+r[8]+'/5':''}${r[9]?'<br><span style="color:var(--text-2)">'+esc(r[9].replace(/;/g,'・'))+'</span>':''}`],
     r[11]&&[ICON.info,'麺：'+esc(r[11])],
     [ICON.pin,`<a href="${gm}" target="_blank" rel="noopener">${esc(r[17]||r[2]+r[3])}</a>`],
-    r[20]&&[ICON.train,esc(r[20])+'<span style="color:var(--text-2)">（直線距離からの目安）</span>'],
+    r[20]&&[ICON.train,esc(r[20])+'<span style="color:var(--text-2)">（目安）</span>'],
     r[13]&&[ICON.clock,(op===true?'<span class="open">営業中</span> ・ ':op===false?'<span class="closed">営業時間外</span> ・ ':'')+esc(jaHours(r[13]))],
     r[14]&&[ICON.web,`<a href="${esc(r[14])}" target="_blank" rel="noopener">${esc(r[14].replace(/^https?:\/\/(www\.)?/,'').split('/')[0])}</a>`],
     r[18]&&[ICON.call,`<a href="tel:${esc(r[18])}">${esc(r[18])}</a>`],
   ].filter(Boolean).map(([i,t])=>`<div class="row">${i}<div>${t}</div></div>`).join('');
   body.innerHTML=`<div class="pl">
     <button class="closeX" id="closeX" aria-label="閉じる">${ICON.x}</button>
-    <h1>${esc(nameOf(r))}${r[1]?' <span style="font-size:16px;color:var(--text-2)">'+esc(r[1])+'</span>':''}</h1>
-    <div class="line">${r[8]?abura(r[8])+'<span class="dot"></span>':''}ラーメン店<span class="dot"></span>${esc(catsText(r))}${dk!=null?'<span class="dot"></span>'+fmtD(dk):''}</div>
-    <div class="line" style="margin-top:2px"><span class="tag ${/^(A|B)/.test(r[12])?'ok':''}">${confLabel(r[12])}</span>${r[10]?'<span class="dot"></span>'+esc(r[10]):''}</div>
+    <h1>${esc(fullName(r))}</h1>
+    <div class="line">${r[8]?abura(r[8])+'<span class="dot"></span>':''}${esc(catsText(r))}${r[10]?'<span class="dot"></span>'+esc(r[10]):''}${dk!=null?'<span class="dot"></span>'+fmtD(dk):''}</div>
     <div class="gal" id="gal">${galHTML(photoCached(r))}</div>
     <div class="acts">
       <a class="act pri" target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&destination=${dest}&travelmode=walking">${ICON.dir}経路</a>
@@ -519,9 +522,9 @@ function openDetail(r,fromMap){
     <div class="rows">${rowsHTML}</div>
     <div class="sec">Google マップの評価・口コミ</div>
     <div class="emb"><iframe title="Google マップ" loading="lazy" referrerpolicy="no-referrer-when-downgrade" allowfullscreen src="https://www.google.com/maps/embed/v1/place?key=${GMAPS_KEY}&language=ja&q=${(photoCached(r)||{}).pid?'place_id:'+photoCached(r).pid:encodeURIComponent((nameOf(r)+' '+(r[1]||'')+' '+(r[17]||r[2]+r[3])).trim())}"></iframe></div>
-    <p class="note">系統・営業状況は公開情報からの推定を含みます。口コミ・写真・最新の営業情報は「Google マップで開く」から確認できます。</p></div>`;
+    <p class="note">最新の営業時間や口コミは「Google マップで開く」で確認できます。</p></div>`;
   body.scrollTop=0;
-  if(!photoCached(r)) photoInfo(r).then(v=>{ if(sel===r && $('gal')) $('gal').outerHTML=`<div class="gal" id="gal">${galHTML(v||{u:[]})}</div>`; if(sel===r&&v&&v.n&&BADNAME.test(r[0].trim())){const h=body.querySelector('.pl h1'); if(h&&h.firstChild) h.firstChild.textContent=v.n} });
+  if(!photoCached(r)) photoInfo(r).then(v=>{ if(sel===r && $('gal')) $('gal').outerHTML=`<div class="gal" id="gal">${galHTML(v||{u:[]})}</div>`; if(sel===r&&v&&v.n){const h=body.querySelector('.pl h1'); if(h) h.textContent=v.n} if(sel===r&&v&&v.bad){toast('この店はラーメン店ではないようなので、一覧から外しました');closeDetail()} });
   $('closeX').onclick=closeDetail;
   $('shareB').onclick=()=>{const d={title:r[0],text:r[0]+'（'+(r[6]||'ラーメン')+'）',url:gm}; navigator.share?navigator.share(d).catch(()=>{}):(navigator.clipboard.writeText(gm),toast('リンクをコピーしました'))};
   setSheet(1);
@@ -557,7 +560,7 @@ function buildMoods(){
     if(sel) closeDetail(); else renderList(); drawMarkers(); if(snapIdx===0) setSheet(1)});
 }
 function toggle(id){const b=$(id);b.setAttribute('aria-pressed',b.getAttribute('aria-pressed')!=='true');if(sel)closeDetail();else renderList();drawMarkers()}
-$('fOpen').onclick=()=>toggle('fOpen'); $('fSure').onclick=()=>toggle('fSure');
+$('fOpen').onclick=()=>toggle('fOpen');
 $('radius').onchange=()=>{if(sel)closeDetail();else renderList()};
 let tmr; $('q').addEventListener('input',()=>{$('clearQ').style.display=$('q').value?'grid':'none';clearTimeout(tmr);tmr=setTimeout(()=>{if(sel)closeDetail();else renderList();drawMarkers()},250)});
 $('q').addEventListener('keydown',e=>{if(e.key==='Enter'){$('q').blur();setSheet(1)}});
