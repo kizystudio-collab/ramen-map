@@ -116,6 +116,13 @@ button{font:inherit;color:inherit}
 .acts::-webkit-scrollbar{display:none}
 .act{flex:none;height:40px;border-radius:20px;padding:0 16px;display:flex;align-items:center;gap:8px;font-weight:500;font-size:14px;text-decoration:none;cursor:pointer;border:0;background:#c2e7ff;color:#001d35}
 .act.pri{background:#0b57d0;color:#fff}
+.act.on{background:#fce8e6;color:#b3261e}
+.act.went.on{background:#e6f4ea;color:#137333}
+.mine{font-size:13px;font-weight:500;margin-left:6px}
+.mine.f{color:#d93025}.mine.w{color:#137333}
+.rep{margin:4px 16px 0;padding:0;background:none;border:0;color:var(--text-2);font-size:13px;text-decoration:underline;cursor:pointer}
+.repbox{margin:8px 16px 0;display:flex;flex-wrap:wrap;gap:8px}
+.repbox button{height:34px;border-radius:17px;border:1px solid #747775;background:var(--bg);padding:0 14px;font:inherit;font-size:14px;cursor:pointer;color:inherit}
 .act svg{width:18px;height:18px}
 .rows{border-top:1px solid #e9eaeb;margin-top:4px}
 .row{display:flex;gap:20px;align-items:flex-start;padding:14px 16px;font-size:14px;line-height:1.5}
@@ -185,6 +192,8 @@ button{font:inherit;color:inherit}
   </div>
   <div class="filters" id="filters">
     <button class="fchip" id="fOpen" aria-pressed="false">営業中</button>
+    <button class="fchip" id="fFav" aria-pressed="false">♡ 保存した店</button>
+    <label class="fchip">並び <select id="sortBy"><option value="d">近い順</option><option value="k">こってり順</option><option value="a">あっさり順</option></select></label>
     <label class="fchip">範囲 <select id="radius"><option value="1">1km</option><option value="3" selected>3km</option><option value="10">10km</option><option value="50">50km</option></select></label>
   </div>
   <div class="body" id="body"><div class="empty">データを読み込み中…</div></div>
@@ -204,7 +213,7 @@ const CAT = {
 const MOODS = [
   ["ガツンとこってり","こってり"],["あっさり","あっさり"],["豚骨","豚骨"],["醤油","醤油"],["味噌","味噌"],["塩","塩"],
   ["家系","家系"],["二郎系","二郎"],["鶏白湯","鶏白湯"],["煮干し","煮干し"],["つけ麺","つけ麺"],["辛いの","辛い"],
-  ["汁なし・油そば","汁なし"],["貝・海鮮","貝"],["牛骨","牛骨"],["中華そば","中華そば"],["野菜たっぷり","野菜"],["町中華","町中華"]
+  ["汁なし・油そば","汁なし"],["貝・海鮮","貝"],["牛骨","牛骨"],["中華そば","中華そば"],["野菜たっぷり","野菜"]
 ];
 const SYN = {
   "豚骨":["豚骨","とんこつ","家系","二郎系"], "とんこつ":["豚骨"], "醤油":["醤油","豚骨醤油","家系"], "しょうゆ":["醤油"],
@@ -212,7 +221,7 @@ const SYN = {
   "煮干し":["煮干し"], "にぼし":["煮干し"], "ニボ":["煮干し"], "魚介":["魚介","煮干し","貝"], "貝":["貝","貝・海鮮"], "海鮮":["貝・海鮮","海老","魚介"],
   "つけ麺":["つけ麺","魚介豚骨"], "辛い":["辛い","辛系","担々麺"], "激辛":["辛い","辛系"], "辛":["辛い","辛系","担々"], "担々":["担々"], "担々麺":["担々"],
   "汁なし":["汁なし","油そば・まぜそば"], "油そば":["油そば"], "まぜそば":["まぜそば","油そば"], "家系":["家系"], "二郎":["二郎系"], "ジロー":["二郎系"], "マシマシ":["二郎系"],
-  "中華そば":["醤油","昔ながら","中華そば","煮干し"], "昔ながら":["昔ながら","醤油","町中華"], "町中華":["町中華"], "野菜":["野菜","タンメン"], "タンメン":["タンメン"],
+  "中華そば":["醤油","昔ながら","中華そば","煮干し"], "昔ながら":["昔ながら","醤油"], "町中華":["町中華"], "野菜":["野菜","タンメン"], "タンメン":["タンメン"],
   "牛骨":["牛骨"], "背脂":["背脂","二郎系"], "にんにく":["にんにく","二郎系"], "博多":["博多","豚骨"], "替え玉":["替え玉","豚骨"], "ちゃんぽん":["ちゃんぽん"], "太麺":["太","極太"], "細麺":["細"]
 };
 /* 雰囲気（v2の雰囲気タグ＋最寄り駅・営業時間から判定） */
@@ -275,7 +284,7 @@ const PH={get(id){try{return JSON.parse(localStorage.getItem('ph:'+id)||'null')}
 function budgetOK(){try{const k='phq:'+new Date().toISOString().slice(0,10);return phSession<PHOTO_SESSION_MAX&&(+localStorage.getItem(k)||0)<PHOTO_DAY_MAX}catch(e){return phSession<PHOTO_SESSION_MAX}}
 function budgetInc(){phSession++;try{const k='phq:'+new Date().toISOString().slice(0,10);localStorage.setItem(k,(+localStorage.getItem(k)||0)+1)}catch(e){}}
 /* Google の業種で、ラーメンを出さない店だと分かったら隠す */
-const NONRAMEN=/^(sushi|yakiniku|soba_noodle|udon_noodle|cafe|coffee|bar|pub|izakaya|bakery|cake|dessert|ice_cream|pizza|italian|french|steak|barbecue|seafood|tonkatsu|tempura|curry|korean_barbecue|hamburger|sandwich|convenience|supermarket|grocery|liquor|lodging|hotel|spa|laundry|gas_station|store|shopping)/;
+const NONRAMEN=/^(sushi|yakiniku|soba_noodle|udon_noodle|cafe|coffee|bar|pub|izakaya|bakery|cake|dessert|ice_cream|pizza|italian|french|steak|barbecue|seafood|tonkatsu|tempura|curry|korean_barbecue|hamburger|sandwich|convenience|supermarket|grocery|liquor|lodging|hotel|spa|laundry|gas_station|store|shopping|japanese_izakaya|yakitori|yakiniku|snack_bar|gas_station)/;
 function notRamen(pt,ty){ty=ty||[];if(ty.includes('ramen_restaurant')||ty.includes('chinese_restaurant')||ty.includes('chinese_noodle_restaurant'))return false;return !!(pt&&NONRAMEN.test(pt))}
 const hiddenByGoogle=r=>{const c=photoCached(r);return !!(c&&c.bad)};
 function photoCached(r){const c=PH.get(r[19]);return c&&Date.now()-c.t<20*864e5?c:null}
@@ -311,6 +320,12 @@ const fullName=r=>{const c=photoCached(r);return (c&&c.n)?c.n:(r[0]+(r[1]?' '+r[
 const catsOf=r=>((r[21]||r[6]||'').split(';').filter(Boolean));
 const catsText=r=>catsOf(r).join('・')||'系統不明';
 
+/* 保存した店・行った店・誤り報告（この端末だけに保存） */
+const MY=(()=>{let o={fav:[],went:[],rep:{}};try{o=Object.assign(o,JSON.parse(localStorage.getItem('my:v1')||'{}'))}catch(e){}
+  const S={fav:new Set(o.fav),went:new Set(o.went),rep:o.rep||{}};
+  S.save=()=>{try{localStorage.setItem('my:v1',JSON.stringify({fav:[...S.fav],went:[...S.went],rep:S.rep}))}catch(e){}};return S})();
+const hiddenByMe=r=>{const k=MY.rep[r[19]];return k==='notramen'||k==='closed'};
+const REPORT_URL='';  // 報告の送り先（Googleフォームなどの事前入力URL。{id}{name}{kind} を置き換える）。空なら端末内だけ
 function terms(){const t=$('q').value.trim().split(/[\s　、,]+/).filter(Boolean);active.forEach(a=>t.push(a));return t}
 function match(r,ts){const hay=r[6]+' '+r[7]+' '+r[9]+' '+r[10]+' '+r[11]+' '+r[16]+' '+r[0]+' '+r[1]+' '+(r[21]||'')+' '+(r[22]||'');
   for(const t of ts){if(VIBE[t]){if(!VIBE[t](r))return false;continue}if(RICH.test(t)){if(r[8]<4)return false;continue}if(LIGHT.test(t)){if(!(r[8]>0&&r[8]<=2))return false;continue}
@@ -406,11 +421,12 @@ async function initMap(){
 function drawMarkers(){
   if(!map||!rows.length) return;
   const b=map.getBounds(); if(!b) return;
-  const c=map.getCenter(), ts=terms(), onlyOpen=$('fOpen').getAttribute('aria-pressed')==='true';
+  const c=map.getCenter(), ts=terms(), onlyOpen=$('fOpen').getAttribute('aria-pressed')==='true', onlyFav=$('fFav').getAttribute('aria-pressed')==='true';
   const want=[];
   for(const r of rows){
     if(!b.contains({lat:r[4],lng:r[5]})) continue;
-    if(hiddenByGoogle(r)) continue;
+    if(hiddenByGoogle(r)||hiddenByMe(r)) continue;
+    if(onlyFav && !MY.fav.has(r[19])) continue;
     if(ts.length && !match(r,ts)) continue;
     if(onlyOpen && openNow(r[13])!==true) continue;
     want.push([Math.abs(r[4]-c.lat())+Math.abs(r[5]-c.lng()),r]);
@@ -435,19 +451,21 @@ function drawMarkers(){
 
 /* ========== 一覧 ========== */
 function computeList(){
-  const ts=terms(), rad=+$('radius').value, onlyOpen=$('fOpen').getAttribute('aria-pressed')==='true';
+  const ts=terms(), onlyOpen=$('fOpen').getAttribute('aria-pressed')==='true', onlyFav=$('fFav').getAttribute('aria-pressed')==='true', rad=onlyFav?3000:+$('radius').value;
   if(!anchor&&!here&&map) anchor={lat:map.getCenter().lat(),lng:map.getCenter().lng()};  // 現在地なしでも「このエリアを検索」が出るよう基準点を持つ
   const o=anchor||here||(map?{lat:map.getCenter().lat(),lng:map.getCenter().lng()}:{lat:34.7025,lng:135.4959});
   const out=[];
   for(const r of rows){
     if(Math.abs(r[4]-o.lat)>rad/90||Math.abs(r[5]-o.lng)>rad/70) continue;
     const dk=km(o.lat,o.lng,r[4],r[5]); if(dk>rad) continue;
-    if(hiddenByGoogle(r)) continue;
+    if(hiddenByGoogle(r)||hiddenByMe(r)) continue;
+    if(onlyFav && !MY.fav.has(r[19])) continue;
     if(ts.length && !match(r,ts)) continue;
     if(onlyOpen && openNow(r[13])!==true) continue;
     out.push([dk,r]);
   }
-  out.sort((a,b)=>a[0]-b[0]); results=out; return ts;
+  const sb=$('sortBy').value, kt=r=>+r[8]||0;
+  out.sort(sb==='k'?(a,b)=>(kt(b[1])-kt(a[1]))||a[0]-b[0]:sb==='a'?(a,b)=>((kt(a[1])||9)-(kt(b[1])||9))||a[0]-b[0]:(a,b)=>a[0]-b[0]); results=out; return ts;
 }
 function renderList(){
   if(!rows.length) return;
@@ -468,7 +486,7 @@ function itemHTML(r,dk,i){
   const [col,ch]=CAT[r[6]]||CAT[""], op=openNow(r[13]);
   return `<div class="item" data-i="${i}" role="button" tabindex="0">
     <div class="tx"><div class="nm">${esc(fullName(r))}</div>
-      <div class="line">${r[8]?abura(r[8])+'<span class="dot"></span>':''}${esc(catsText(r))}<span class="dot"></span>${fmtD(dk)}</div>
+      <div class="line">${MY.fav.has(r[19])?'<span class="mine f" style="margin:0 6px 0 0">♥</span>':''}${MY.went.has(r[19])?'<span class="mine w" style="margin:0 6px 0 0">✓行った</span>':''}${r[8]?abura(r[8])+'<span class="dot"></span>':''}${esc(catsText(r))}<span class="dot"></span>${fmtD(dk)}</div>
       <div class="line">${esc(r[20]?r[20].replace(/ 徒歩/,'・徒歩'):(r[3]||r[2]))}${(()=>{const v=VIBES.find(([,k,f])=>k!=='駅近'&&f(r));return v?'<span class="dot"></span><span style="color:#174ea6">'+esc(v[0])+'</span>':''})()}</div>
       <div class="line">${op===true?'<span class="open">営業中</span>':op===false?'<span class="closed">営業時間外</span>':''}${op!==null&&r[16]?'<span class="dot"></span>':''}${r[16]?esc(r[16].split(/[;、]/)[0]):''}</div></div>
     <div class="thumb" style="background:${col}" aria-hidden="true">${ch}</div></div>`;
@@ -515,6 +533,8 @@ function openDetail(r,fromMap){
       <a class="act pri" target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&destination=${dest}&travelmode=walking">${ICON.dir}経路</a>
       <a class="act" target="_blank" rel="noopener" href="${gm}">${ICON.open}Google マップで開く</a>
       ${r[18]?`<a class="act" href="tel:${esc(r[18])}">${ICON.call}電話</a>`:''}
+      <button class="act${MY.fav.has(r[19])?' on':''}" id="favB" aria-pressed="${MY.fav.has(r[19])}">${MY.fav.has(r[19])?'♥ 保存済み':'♡ 保存'}</button>
+      <button class="act went${MY.went.has(r[19])?' on':''}" id="wentB" aria-pressed="${MY.went.has(r[19])}">${MY.went.has(r[19])?'✓ 行った':'行った'}</button>
       <button class="act" id="shareB">${ICON.share}共有</button>
     </div>
     ${r[16]?`<div class="sec">メニュー</div><div class="menu">${r[16].split(/[;、,／/]/).filter(Boolean).slice(0,6).map(x=>'<span>'+esc(x.trim())+'</span>').join('')}</div>`:''}
@@ -522,10 +542,19 @@ function openDetail(r,fromMap){
     <div class="rows">${rowsHTML}</div>
     <div class="sec">Google マップの評価・口コミ</div>
     <div class="emb"><iframe title="Google マップ" loading="lazy" referrerpolicy="no-referrer-when-downgrade" allowfullscreen src="https://www.google.com/maps/embed/v1/place?key=${GMAPS_KEY}&language=ja&q=${(photoCached(r)||{}).pid?'place_id:'+photoCached(r).pid:encodeURIComponent((nameOf(r)+' '+(r[1]||'')+' '+(r[17]||r[2]+r[3])).trim())}"></iframe></div>
-    <p class="note">最新の営業時間や口コミは「Google マップで開く」で確認できます。</p></div>`;
+    <p class="note">最新の営業時間や口コミは「Google マップで開く」で確認できます。</p>
+    <button class="rep" id="repB">情報のまちがいを知らせる</button><div class="repbox" id="repBox" hidden>
+      <button data-k="notramen">ラーメン店ではない</button><button data-k="closed">閉店している</button><button data-k="name">店名がちがう</button><button data-k="place">場所がちがう</button></div></div>`;
   body.scrollTop=0;
   if(!photoCached(r)) photoInfo(r).then(v=>{ if(sel===r && $('gal')) $('gal').outerHTML=`<div class="gal" id="gal">${galHTML(v||{u:[]})}</div>`; if(sel===r&&v&&v.n){const h=body.querySelector('.pl h1'); if(h) h.textContent=v.n} if(sel===r&&v&&v.bad){toast('この店はラーメン店ではないようなので、一覧から外しました');closeDetail()} });
   $('closeX').onclick=closeDetail;
+  const flip=(set,id,on1,off1)=>{const b=$(id),on=!set.has(r[19]);on?set.add(r[19]):set.delete(r[19]);MY.save();b.classList.toggle('on',on);b.setAttribute('aria-pressed',on);b.textContent=on?on1:off1};
+  $('favB').onclick=()=>{flip(MY.fav,'favB','♥ 保存済み','♡ 保存');toast(MY.fav.has(r[19])?'保存しました（「♡ 保存した店」で一覧できます）':'保存を外しました')};
+  $('wentB').onclick=()=>flip(MY.went,'wentB','✓ 行った','行った');
+  $('repB').onclick=()=>{$('repBox').hidden=!$('repBox').hidden};
+  $('repBox').onclick=e=>{const k=e.target.dataset&&e.target.dataset.k; if(!k) return; MY.rep[r[19]]=k; MY.save();
+    if(REPORT_URL) open(REPORT_URL.replace('{id}',encodeURIComponent(r[19])).replace('{name}',encodeURIComponent(fullName(r))).replace('{kind}',encodeURIComponent(e.target.textContent)),'_blank','noopener');
+    if(k==='notramen'||k==='closed'){toast('ありがとうございます。この店は表示しないようにしました');closeDetail()} else {toast('ありがとうございます。次の更新で確かめます');$('repBox').hidden=true}};
   $('shareB').onclick=()=>{const d={title:r[0],text:r[0]+'（'+(r[6]||'ラーメン')+'）',url:gm}; navigator.share?navigator.share(d).catch(()=>{}):(navigator.clipboard.writeText(gm),toast('リンクをコピーしました'))};
   setSheet(1);
 }
@@ -553,14 +582,16 @@ function locate(){
 /* ========== UI 配線 ========== */
 function buildMoods(){
   const alias={"二郎":"二郎系","つけ麺":"魚介豚骨","辛い":"辛系","汁なし":"油そば・まぜそば","貝":"貝・海鮮","中華そば":"醤油","野菜":"タンメン・野菜"};
-  $('moods').innerHTML=VIBES.map(([l,t])=>`<button class="chip vibe" aria-pressed="false" data-t="${t}">${l}</button>`).join('')+'<span class="csep" aria-hidden="true"></span>'+
-    MOODS.map(([l,t])=>{const c=(CAT[t]||CAT[alias[t]]||[null])[0];return `<button class="chip" aria-pressed="false" data-t="${t}">${c?`<i style="background:${c}"></i>`:''}${l}</button>`}).join('');
+  $('moods').innerHTML=MOODS.map(([l,t])=>{const c=(CAT[t]||CAT[alias[t]]||[null])[0];return `<button class="chip" aria-pressed="false" data-t="${t}">${c?`<i style="background:${c}"></i>`:''}${l}</button>`}).join('')+'<span class="csep" aria-hidden="true"></span>'+
+    VIBES.map(([l,t])=>`<button class="chip vibe" aria-pressed="false" data-t="${t}">${l}</button>`).join('');
   $('moods').addEventListener('click',e=>{const b=e.target.closest('.chip'); if(!b) return;
     const t=b.dataset.t,on=b.getAttribute('aria-pressed')!=='true'; b.setAttribute('aria-pressed',on); on?active.add(t):active.delete(t);
     if(sel) closeDetail(); else renderList(); drawMarkers(); if(snapIdx===0) setSheet(1)});
 }
 function toggle(id){const b=$(id);b.setAttribute('aria-pressed',b.getAttribute('aria-pressed')!=='true');if(sel)closeDetail();else renderList();drawMarkers()}
 $('fOpen').onclick=()=>toggle('fOpen');
+$('fFav').onclick=()=>{toggle('fFav');if(!MY.fav.size)toast('お店の詳細で「♡ 保存」を押すとここに集まります')};
+$('sortBy').onchange=()=>{if(sel)closeDetail();else renderList()};
 $('radius').onchange=()=>{if(sel)closeDetail();else renderList()};
 let tmr; $('q').addEventListener('input',()=>{$('clearQ').style.display=$('q').value?'grid':'none';clearTimeout(tmr);tmr=setTimeout(()=>{if(sel)closeDetail();else renderList();drawMarkers()},250)});
 $('q').addEventListener('keydown',e=>{if(e.key==='Enter'){$('q').blur();setSheet(1)}});
@@ -569,9 +600,10 @@ $('locate').onclick=locate;
 $('reSearch').onclick=()=>{const c=map.getCenter();anchor={lat:c.lat(),lng:c.lng()};$('reSearch').classList.remove('on');$('locate').classList.remove('on');if(sel)closeDetail();else renderList();setSheet(1)};
 addEventListener('keydown',e=>{if(e.key==='Escape'&&sel)closeDetail()});
 
+const dataP=fetch('data.json').then(r=>{if(!r.ok)throw 0;return r.json()});  // 地図の読み込みと並行してデータを取りにいく
 setSheet(1,false); buildMoods();
 initMap().catch(e=>console.warn(e)).finally(()=>{
-  fetch('data.json').then(r=>r.json()).then(j=>{rows=j.rows;renderList();drawMarkers();locate()})
+  dataP.then(j=>{rows=j.rows;renderList();drawMarkers();locate()})
     .catch(()=>{body.innerHTML='<div class="empty">データを読み込めませんでした。電波の良い場所で再読み込みしてください。</div>'});
 });
 </script>
